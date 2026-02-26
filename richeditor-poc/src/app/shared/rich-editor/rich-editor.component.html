@@ -120,11 +120,79 @@
     </button>
   </div>
 
-  <!-- Editor contenteditable area -->
-  <div
-    #editorEl
-    class="editor-content"
-    contenteditable="true"
-    data-placeholder="Type here... (supports Markdown: ## Heading, **bold**, `code`, ``` code block)"
-  ></div>
+  <!-- Editor area: position:relative wrapper for resize/reorder indicators -->
+  <div class="editor-area">
+    <div
+      #editorEl
+      class="editor-content"
+      contenteditable="true"
+      data-placeholder="Type here... (supports Markdown: ## Heading, **bold**, `code`, ``` code block)"
+      (mousemove)="onEditorMouseMove($event)"
+      (mouseleave)="onEditorMouseLeave()"
+      (mousedown)="onEditorMouseDown($event)"
+    ></div>
+
+    <!-- Table cell action button (top-right of hovered cell) -->
+    @if (tableActionBtn(); as btn) {
+      <button
+        class="table-action-btn"
+        [style.left.px]="btn.x"
+        [style.top.px]="btn.y"
+        title="Table options"
+        (mouseenter)="onTableActionBtnEnter()"
+        (mouseleave)="onTableActionBtnLeave($event)"
+        (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+        (click)="openTableMenu($event)"
+      >⋮</button>
+    }
+
+    <!-- Resize indicator line -->
+    @if (resizeIndicator(); as ri) {
+      <div
+        class="resize-line"
+        [class.resize-line-v]="ri.vertical"
+        [class.resize-line-h]="!ri.vertical"
+        [style.left.px]="ri.vertical ? ri.position : 0"
+        [style.top.px]="ri.vertical ? 0 : ri.position"
+      ></div>
+    }
+
+    <!-- Reorder drop indicator line -->
+    @if (reorderIndicator(); as roi) {
+      <div
+        class="reorder-line"
+        [style.left.px]="roi.x"
+        [style.top.px]="roi.y"
+        [style.width.px]="roi.w"
+        [style.height.px]="roi.h"
+      ></div>
+    }
+  </div>
 </div>
+
+<!-- Table context menu (outside wrapper so position: fixed works correctly) -->
+@if (tableMenu(); as menu) {
+  <div class="table-ctx-overlay" (click)="closeTableMenu()" (contextmenu)="closeTableMenu()"></div>
+  <ul class="table-ctx-menu" [style.left.px]="menu.x" [style.top.px]="menu.y">
+    <li (click)="tableAction('insertRowAbove')">↑ Insert Row Above</li>
+    <li (click)="tableAction('insertRowBelow')">↓ Insert Row Below</li>
+    <li (click)="tableAction('insertColLeft')">← Insert Column Left</li>
+    <li (click)="tableAction('insertColRight')">→ Insert Column Right</li>
+    <li class="separator"></li>
+    <li (click)="tableAction('deleteRow')" class="danger">✕ Delete Row</li>
+    <li (click)="tableAction('deleteCol')" class="danger">✕ Delete Column</li>
+    @if (menu.canMerge || menu.canSplit) {
+      <li class="separator"></li>
+      @if (menu.canMerge) {
+        <li (click)="tableAction('mergeCells')">⊡ Merge Cells</li>
+      }
+      @if (menu.canSplit) {
+        <li (click)="tableAction('splitCell')">⊞ Split Cell</li>
+      }
+    }
+    <li class="separator"></li>
+    <li (click)="tableAction('toggleRowHeader')">
+      {{ menu.isRowHeader ? '☑ Remove Row Header' : '☐ Set as Row Header' }}
+    </li>
+  </ul>
+}
