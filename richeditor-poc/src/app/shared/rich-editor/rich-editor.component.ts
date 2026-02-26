@@ -55,7 +55,9 @@ import {
   HeadingNode,
   QuoteNode,
   $createHeadingNode,
+  $createQuoteNode,
   $isHeadingNode,
+  $isQuoteNode,
 } from '@lexical/rich-text';
 import { createEmptyHistoryState, registerHistory } from '@lexical/history';
 import {
@@ -68,7 +70,7 @@ import {
   REMOVE_LIST_COMMAND,
 } from '@lexical/list';
 import { LinkNode, AutoLinkNode } from '@lexical/link';
-import { CodeNode, CodeHighlightNode, registerCodeHighlighting } from '@lexical/code';
+import { CodeNode, CodeHighlightNode, $createCodeNode, $isCodeNode, registerCodeHighlighting } from '@lexical/code';
 import { mergeRegister } from '@lexical/utils';
 import {
   $setBlocksType,
@@ -116,7 +118,7 @@ const EDITOR_THEME = {
   tableSelection: 'lx-table-selection',
 };
 
-type HeadingTag = 'h1' | 'h2' | 'h3' | 'paragraph';
+type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'paragraph' | 'quote' | 'code';
 
 @Component({
   selector: 'app-rich-editor',
@@ -142,6 +144,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   isItalic = signal(false);
   isUnderline = signal(false);
   isStrikethrough = signal(false);
+  isInlineCode = signal(false);
   fontColor = signal('#000000');
   bgColor = signal('#ffffff');
   listType = signal<'none' | 'bullet' | 'number'>('none');
@@ -210,10 +213,15 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   private readonly _boundImgKeyDown    = (e: KeyboardEvent) => this._onImgKeyDown(e);
 
   readonly headingOptions: { label: string; value: HeadingTag }[] = [
-    { label: 'Normal', value: 'paragraph' },
-    { label: 'Heading 1', value: 'h1' },
-    { label: 'Heading 2', value: 'h2' },
-    { label: 'Heading 3', value: 'h3' },
+    { label: 'Normal',      value: 'paragraph' },
+    { label: 'Heading 1',   value: 'h1' },
+    { label: 'Heading 2',   value: 'h2' },
+    { label: 'Heading 3',   value: 'h3' },
+    { label: 'Heading 4',   value: 'h4' },
+    { label: 'Heading 5',   value: 'h5' },
+    { label: 'Heading 6',   value: 'h6' },
+    { label: 'Quote',       value: 'quote' },
+    { label: 'Code Block',  value: 'code' },
   ];
 
   private editor!: LexicalEditor;
@@ -293,7 +301,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
   // ── Toolbar actions ────────────────────────────────────────────────────────
 
-  format(type: 'bold' | 'italic' | 'underline' | 'strikethrough'): void {
+  format(type: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code'): void {
     this.editor.dispatchCommand(FORMAT_TEXT_COMMAND, type);
   }
 
@@ -578,8 +586,12 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
         if (!$isRangeSelection(selection)) return;
         if (tag === 'paragraph') {
           $setBlocksType(selection, () => $createParagraphNode());
+        } else if (tag === 'quote') {
+          $setBlocksType(selection, () => $createQuoteNode());
+        } else if (tag === 'code') {
+          $setBlocksType(selection, () => $createCodeNode());
         } else {
-          $setBlocksType(selection, () => $createHeadingNode(tag));
+          $setBlocksType(selection, () => $createHeadingNode(tag as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'));
         }
       });
     });
@@ -1200,6 +1212,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       this.isItalic.set(sel.hasFormat('italic'));
       this.isUnderline.set(sel.hasFormat('underline'));
       this.isStrikethrough.set(sel.hasFormat('strikethrough'));
+      this.isInlineCode.set(sel.hasFormat('code'));
       this.fontColor.set($getSelectionStyleValueForProperty(sel, 'color', '#000000'));
       this.bgColor.set($getSelectionStyleValueForProperty(sel, 'background-color', '#ffffff'));
 
@@ -1212,6 +1225,10 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
       if ($isHeadingNode(element)) {
         this.blockType.set(element.getTag() as HeadingTag);
+      } else if ($isQuoteNode(element)) {
+        this.blockType.set('quote');
+      } else if ($isCodeNode(element)) {
+        this.blockType.set('code');
       } else {
         this.blockType.set('paragraph');
       }
@@ -1229,6 +1246,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       this.isItalic.set(false);
       this.isUnderline.set(false);
       this.isStrikethrough.set(false);
+      this.isInlineCode.set(false);
       this.fontColor.set('#000000');
       this.bgColor.set('#ffffff');
       this.listType.set('none');

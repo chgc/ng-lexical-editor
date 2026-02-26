@@ -131,6 +131,19 @@
     h1 { font-size: 1.8em; font-weight: 700; margin: 8px 0 4px; }
     h2 { font-size: 1.4em; font-weight: 600; margin: 6px 0 4px; }
     h3 { font-size: 1.15em; font-weight: 600; margin: 4px 0; }
+    h4 { font-size: 1.0em;  font-weight: 600; margin: 4px 0; }
+    h5 { font-size: 0.9em;  font-weight: 600; margin: 4px 0; color: #4b5563; }
+    h6 { font-size: 0.85em; font-weight: 600; margin: 4px 0; color: #6b7280; }
+
+    blockquote {
+      margin: 6px 0;
+      padding: 6px 12px;
+      border-left: 4px solid #6366f1;
+      background: #f5f3ff;
+      color: #4b5563;
+      border-radius: 0 4px 4px 0;
+      font-style: italic;
+    }
 
     // Inline text formats rendered by Lexical via theme classes
     .lx-underline { text-decoration: underline; }
