@@ -23,6 +23,10 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.code-lang-select {
+  min-width: 110px;
+}
+
 .block-select {
   height: 28px;
   padding: 0 6px;
@@ -151,21 +155,56 @@
     .lx-underline-strikethrough { text-decoration: underline line-through; }
     span[style] { /* inline color / bg-color styles pass through */ }
 
-    code {
+    // Inline code (text format)
+    .lx-inline-code {
       font-family: 'Fira Code', 'Cascadia Code', monospace;
       font-size: 0.88em;
       background: #f3f4f6;
+      border: 1px solid #e5e7eb;
       border-radius: 3px;
-      padding: 0 4px;
+      padding: 1px 5px;
     }
+
+    // Block code (CodeNode)
+    .lx-code-block {
+      display: block;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.875em;
+      line-height: 1.6;
+      padding: 14px 18px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 8px 0;
+      white-space: pre;
+      tab-size: 2;
+      counter-reset: none;
+    }
+
+    // ── Syntax highlighting tokens (Catppuccin Mocha palette) ─────────────────
+    .lx-tk-comment    { color: #6c7086; font-style: italic; }
+    .lx-tk-string     { color: #a6e3a1; }
+    .lx-tk-keyword    { color: #cba6f7; font-weight: 600; }
+    .lx-tk-function   { color: #89b4fa; }
+    .lx-tk-number     { color: #fab387; }
+    .lx-tk-operator   { color: #89dceb; }
+    .lx-tk-property   { color: #f38ba8; }
+    .lx-tk-punctuation { color: #9399b2; }
+    .lx-tk-selector   { color: #94e2d5; }
+    .lx-tk-variable   { color: #cdd6f4; }
+    .lx-tk-tag        { color: #f38ba8; }
+    .lx-tk-attr       { color: #89b4fa; }
+    .lx-tk-regex      { color: #fab387; }
+
     pre {
-      background: #1e1b4b;
-      color: #c7d2fe;
+      background: #1e1e2e;
+      color: #cdd6f4;
       padding: 14px 16px;
       border-radius: 6px;
       overflow-x: auto;
       margin: 8px 0;
-      code { background: transparent; color: inherit; padding: 0; }
+      code { background: transparent; color: inherit; padding: 0; border: none; }
     }
 
     table, .lx-table {

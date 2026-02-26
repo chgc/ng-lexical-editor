@@ -109,6 +109,40 @@ const EDITOR_THEME = {
     underline: 'lx-underline',
     strikethrough: 'lx-strikethrough',
     underlineStrikethrough: 'lx-underline-strikethrough',
+    code: 'lx-inline-code',
+  },
+  code: 'lx-code-block',
+  codeHighlight: {
+    atrule:       'lx-tk-keyword',
+    attr:         'lx-tk-attr',
+    boolean:      'lx-tk-property',
+    builtin:      'lx-tk-selector',
+    cdata:        'lx-tk-comment',
+    char:         'lx-tk-selector',
+    class:        'lx-tk-function',
+    'class-name': 'lx-tk-function',
+    comment:      'lx-tk-comment',
+    constant:     'lx-tk-property',
+    deleted:      'lx-tk-property',
+    doctype:      'lx-tk-comment',
+    entity:       'lx-tk-operator',
+    function:     'lx-tk-function',
+    important:    'lx-tk-variable',
+    inserted:     'lx-tk-selector',
+    keyword:      'lx-tk-keyword',
+    namespace:    'lx-tk-variable',
+    number:       'lx-tk-number',
+    operator:     'lx-tk-operator',
+    prolog:       'lx-tk-comment',
+    property:     'lx-tk-property',
+    punctuation:  'lx-tk-punctuation',
+    regex:        'lx-tk-regex',
+    selector:     'lx-tk-selector',
+    string:       'lx-tk-string',
+    symbol:       'lx-tk-property',
+    tag:          'lx-tk-tag',
+    url:          'lx-tk-operator',
+    variable:     'lx-tk-variable',
   },
   table: 'lx-table',
   tableRow: 'lx-table-row',
@@ -145,6 +179,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   isUnderline = signal(false);
   isStrikethrough = signal(false);
   isInlineCode = signal(false);
+  codeLanguage = signal('javascript');
   fontColor = signal('#000000');
   bgColor = signal('#ffffff');
   listType = signal<'none' | 'bullet' | 'number'>('none');
@@ -594,6 +629,16 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
           $setBlocksType(selection, () => $createHeadingNode(tag as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'));
         }
       });
+    });
+  }
+
+  setCodeLanguage(lang: string): void {
+    this.codeLanguage.set(lang);
+    this.editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      const node = selection.anchor.getNode().getTopLevelElementOrThrow();
+      if ($isCodeNode(node)) (node as any).setLanguage(lang);
     });
   }
 
@@ -1229,6 +1274,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
         this.blockType.set('quote');
       } else if ($isCodeNode(element)) {
         this.blockType.set('code');
+        this.codeLanguage.set((element as any).getLanguage() || 'javascript');
       } else {
         this.blockType.set('paragraph');
       }
