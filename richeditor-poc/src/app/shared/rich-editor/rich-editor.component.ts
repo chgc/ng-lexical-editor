@@ -22,6 +22,7 @@ import {
   $createParagraphNode,
   $getNearestNodeFromDOMNode,
   FORMAT_TEXT_COMMAND,
+  FORMAT_ELEMENT_COMMAND,
   UNDO_COMMAND,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
@@ -132,9 +133,14 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   bgColor         = signal('#ffffff');
   listType        = signal<'none' | 'bullet' | 'number'>('none');
   blockType       = signal<HeadingTag>('paragraph');
+  textAlign       = signal<'left' | 'center' | 'right' | ''>('');
 
   // Table context menu
-  tableMenu = signal<{ x: number; y: number; canMerge: boolean; canSplit: boolean; isRowHeader: boolean } | null>(null);
+  tableMenu = signal<{
+    x: number; y: number;
+    canMerge: boolean; canSplit: boolean; isRowHeader: boolean;
+    vAlign: string;
+  } | null>(null);
   private _contextMenuCell: HTMLElement | null = null;
 
   // Table cell action button (shown on hover, top-right of cell)
@@ -245,6 +251,10 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     this.editor.dispatchCommand(FORMAT_TEXT_COMMAND, type);
   }
 
+  setAlignment(fmt: 'left' | 'center' | 'right'): void {
+    this.editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, fmt);
+  }
+
   applyFontColor(color: string): void {
     this.fontColor.set(color);
     this.editor.update(() => {
@@ -339,12 +349,14 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
           const canMerge = $isTableSelection(sel);
           let canSplit = false;
           let isRowHeader = false;
+          let vAlign = '';
           const cellNode = $getNearestNodeFromDOMNode(target!);
           if ($isTableCellNode(cellNode)) {
             canSplit = cellNode.getColSpan() > 1 || cellNode.getRowSpan() > 1;
             isRowHeader = cellNode.hasHeaderState(TableCellHeaderStates.ROW);
+            vAlign = cellNode.getVerticalAlign() ?? '';
           }
-          this.tableMenu.set({ x: event.clientX, y: event.clientY, canMerge, canSplit, isRowHeader });
+          this.tableMenu.set({ x: event.clientX, y: event.clientY, canMerge, canSplit, isRowHeader, vAlign });
           this.cdr.markForCheck();
         });
         return;
@@ -362,14 +374,17 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   tableAction(action: string): void {
     this.tableMenu.set(null);
     const cellDOM = this._contextMenuCell;
+
     this.editor.focus(() => {
       this.editor.update(() => {
-        // For all operations except mergeCells, place cursor in the right-clicked cell
-        if (action !== 'mergeCells' && cellDOM) {
+        // Delete operations must preserve an existing TableSelection (multi-cell).
+        // V align and toggleRowHeader operate on the cell node directly (no selection needed).
+        // Insert/split use the action-button's cell as the cursor anchor.
+        const needsCellAnchor = !['mergeCells', 'deleteRow', 'deleteCol',
+          'vAlignTop', 'vAlignMiddle', 'vAlignBottom'].includes(action);
+        if (needsCellAnchor && cellDOM) {
           const cellNode = $getNearestNodeFromDOMNode(cellDOM);
-          if ($isTableCellNode(cellNode)) {
-            cellNode.selectStart();
-          }
+          if ($isTableCellNode(cellNode)) cellNode.selectStart();
         }
         const sel = $getSelection();
         switch (action) {
@@ -379,6 +394,19 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
           case 'insertColRight':    $insertTableColumnAtSelection(true);  break;
           case 'deleteRow':         $deleteTableRowAtSelection(); break;
           case 'deleteCol':         $deleteTableColumnAtSelection(); break;
+          case 'vAlignTop':
+          case 'vAlignMiddle':
+          case 'vAlignBottom': {
+            if (cellDOM) {
+              const cn = $getNearestNodeFromDOMNode(cellDOM);
+              if ($isTableCellNode(cn)) {
+                // Lexical only recognises 'middle' and 'bottom' as valid; 'top' = undefined (CSS default)
+                const v = action === 'vAlignMiddle' ? 'middle' : action === 'vAlignBottom' ? 'bottom' : undefined;
+                cn.setVerticalAlign(v);
+              }
+            }
+            break;
+          }
           case 'toggleRowHeader': {
             if (cellDOM) {
               const cellNode = $getNearestNodeFromDOMNode(cellDOM);
@@ -386,9 +414,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
                 const row = cellNode.getParent();
                 if ($isTableRowNode(row)) {
                   row.getChildren().forEach(child => {
-                    if ($isTableCellNode(child)) {
-                      child.toggleHeaderStyle(TableCellHeaderStates.ROW);
-                    }
+                    if ($isTableCellNode(child)) child.toggleHeaderStyle(TableCellHeaderStates.ROW);
                   });
                 }
               }
@@ -401,7 +427,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
               if (cells.length > 1) $mergeCells(cells);
             }
             break;
-          case 'splitCell':         $unmergeCell(); break;
+          case 'splitCell': $unmergeCell(); break;
         }
       });
     });
@@ -493,13 +519,15 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       const canMerge = $isTableSelection(sel);
       let canSplit = false;
       let isRowHeader = false;
+      let vAlign = '';
       const cellNode = $getNearestNodeFromDOMNode(cellDOM);
       if ($isTableCellNode(cellNode)) {
         canSplit = cellNode.getColSpan() > 1 || cellNode.getRowSpan() > 1;
         isRowHeader = cellNode.hasHeaderState(TableCellHeaderStates.ROW);
+        vAlign = cellNode.getVerticalAlign() ?? '';
       }
       const btnRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-      this.tableMenu.set({ x: btnRect.left, y: btnRect.bottom + 4, canMerge, canSplit, isRowHeader });
+      this.tableMenu.set({ x: btnRect.left, y: btnRect.bottom + 4, canMerge, canSplit, isRowHeader, vAlign });
       this.cdr.markForCheck();
     });
   }
@@ -773,6 +801,15 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       } else {
         this.blockType.set('paragraph');
       }
+
+      // Read current block's text-align (walk up to the nearest shadow-root boundary)
+      let block: LexicalNode = anchorNode;
+      while (block.getParent() !== null) {
+        const parent = block.getParent()!;
+        if (parent.getKey() === 'root' || (parent as any).isShadowRoot?.()) break;
+        block = parent;
+      }
+      this.textAlign.set((block as any).getFormatType?.() ?? '');
     } else {
       this.isBold.set(false);
       this.isItalic.set(false);
@@ -782,6 +819,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       this.bgColor.set('#ffffff');
       this.listType.set('none');
       this.blockType.set('paragraph');
+      this.textAlign.set('');
     }
     this.cdr.markForCheck();
   }

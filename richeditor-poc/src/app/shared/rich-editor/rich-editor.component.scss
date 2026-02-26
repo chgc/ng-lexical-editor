@@ -156,6 +156,7 @@
 
     table, .lx-table {
       border-collapse: collapse;
+      table-layout: fixed;   // columns hold their width; long content wraps
       width: 100%;
       margin: 8px 0;
       font-size: 0.95em;
@@ -165,7 +166,10 @@
       padding: 6px 10px;
       min-width: 60px;
       position: relative;
-      background: #fff; // non-header cells default to white
+      background: #fff;
+      vertical-align: top;        // Lexical's "top" = no inline style; must set via CSS
+      overflow-wrap: break-word;  // wrap long words instead of expanding column
+      word-break: break-word;
     }
     th, .lx-table-cell-header {
       background: #f3f4f6;
@@ -277,6 +281,43 @@
       margin: 4px 0;
       cursor: default;
       &:hover { background: #e5e7eb; }
+    }
+
+    &.menu-align-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: default;
+      &:hover { background: transparent; }
+
+      .align-label {
+        flex: 1;
+        color: #6b7280;
+        min-width: 52px;
+      }
+
+      .align-btns {
+        display: flex;
+        gap: 2px;
+
+        button {
+          width: 26px;
+          height: 22px;
+          border: 1px solid #e5e7eb;
+          border-radius: 3px;
+          background: transparent;
+          cursor: pointer;
+          font-size: 13px;
+          color: #374151;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover { background: #f3f4f6; border-color: #d1d5db; }
+          &.active { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
+        }
+      }
     }
   }
 }
