@@ -153,10 +153,22 @@
       contenteditable="true"
       data-placeholder="Type here... (supports Markdown: ## Heading, **bold**, `code`, ``` code block)"
       (mousemove)="onEditorMouseMove($event)"
-      (mouseleave)="onEditorMouseLeave()"
+      (mouseleave)="onEditorMouseLeave($event)"
       (mousedown)="onEditorMouseDown($event)"
       (click)="onEditorClick($event)"
     ></div>
+
+    <!-- Block drag handle (shown when hovering a top-level block) -->
+    @if (blockDragHandle(); as bh) {
+      <button
+        class="block-drag-handle"
+        [style.top.px]="bh.y + 2"
+        title="Drag to reorder"
+        (mousedown)="onBlockDragHandleMouseDown($event)"
+        (mouseenter)="onBlockDragHandleEnter()"
+        (mouseleave)="onBlockDragHandleLeave($event)"
+      >⠿</button>
+    }
 
     <!-- Table cell action button (top-right of hovered cell) -->
     @if (tableActionBtn(); as btn) {

@@ -18,6 +18,7 @@ import {
   LexicalNode,
   $getRoot,
   $getSelection,
+  $setSelection,
   $isRangeSelection,
   $createParagraphNode,
   $getNearestNodeFromDOMNode,
@@ -167,6 +168,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   resizeIndicator = signal<{ vertical: boolean; position: number } | null>(null);
   reorderIndicator = signal<{ x: number; y: number; w: number; h: number } | null>(null);
   imageSelection = signal<{ x: number; y: number; w: number; h: number } | null>(null);
+  blockDragHandle = signal<{ y: number; h: number } | null>(null);
 
   // ── Private drag/resize state ──────────────────────────────────────────────
   private _colResizeState: {
@@ -198,6 +200,9 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     containerEl: HTMLElement;
   } | null = null;
   private _selectedImgContainer: HTMLElement | null = null;
+  private _hoveredBlockEl: HTMLElement | null = null;
+  private _mouseOverDragHandle = false;
+  private _blockDragState: { sourceIndex: number; dropIndex: number | null } | null = null;
 
   private readonly _boundDocMouseMove  = (e: MouseEvent) => this._onDocMouseMove(e);
   private readonly _boundDocMouseUp    = (e: MouseEvent) => this._onDocMouseUp(e);
@@ -585,18 +590,24 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   onEditorMouseMove(event: MouseEvent): void {
     const cell = this._findTableCell(event.target as HTMLElement);
 
-    // Update action button position when not dragging
-    if (!this._colResizeState && !this._rowResizeState && !this._reorderState) {
+    // Update action button and block drag handle when not in any drag state
+    if (!this._colResizeState && !this._rowResizeState && !this._reorderState && !this._blockDragState) {
       if (cell) {
         this._updateTableActionBtn(cell);
       } else if (!this._mouseOverActionBtn) {
         this.tableActionBtn.set(null);
         this._actionBtnCell = null;
       }
+
+      const block = this._getTopLevelBlock(event.target as HTMLElement);
+      if (block !== null && block !== this._hoveredBlockEl) {
+        this._hoveredBlockEl = block;
+        this._updateBlockDragHandle(block);
+      }
     }
 
     // Cursor change logic
-    if (this._colResizeState || this._rowResizeState || this._reorderState) return;
+    if (this._colResizeState || this._rowResizeState || this._reorderState || this._blockDragState) return;
     if (!cell) {
       this.editorEl.nativeElement.style.cursor = '';
       return;
@@ -619,13 +630,20 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     }
   }
 
-  onEditorMouseLeave(): void {
-    if (!this._colResizeState && !this._rowResizeState && !this._reorderState) {
+  onEditorMouseLeave(event: MouseEvent): void {
+    if (!this._colResizeState && !this._rowResizeState && !this._reorderState && !this._blockDragState) {
       this.editorEl.nativeElement.style.cursor = '';
     }
     if (!this._mouseOverActionBtn) {
       this.tableActionBtn.set(null);
       this._actionBtnCell = null;
+      this.cdr.markForCheck();
+    }
+    const related = event.relatedTarget as HTMLElement | null;
+    const goingToHandle = !!related?.closest('.block-drag-handle');
+    if (!goingToHandle && !this._blockDragState) {
+      this._hoveredBlockEl = null;
+      this.blockDragHandle.set(null);
       this.cdr.markForCheck();
     }
   }
@@ -680,6 +698,35 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     if (container) {
       this._selectImage(container);
       event.stopPropagation();
+    }
+  }
+
+  onBlockDragHandleMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const block = this._hoveredBlockEl;
+    if (!block) return;
+    const children = Array.from(this.editorEl.nativeElement.children);
+    const sourceIndex = children.indexOf(block);
+    if (sourceIndex < 0) return;
+    this._blockDragState = { sourceIndex, dropIndex: null };
+    this._mouseOverDragHandle = false;
+    this.blockDragHandle.set(null);
+    this.editorEl.nativeElement.style.cursor = 'grabbing';
+    this._attachDocumentHandlers();
+  }
+
+  onBlockDragHandleEnter(): void {
+    this._mouseOverDragHandle = true;
+  }
+
+  onBlockDragHandleLeave(event: MouseEvent): void {
+    this._mouseOverDragHandle = false;
+    const related = event.relatedTarget as HTMLElement | null;
+    if (!related || !this.editorEl.nativeElement.contains(related)) {
+      this._hoveredBlockEl = null;
+      this.blockDragHandle.set(null);
+      this.cdr.markForCheck();
     }
   }
 
@@ -765,6 +812,29 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   }
 
   private _onDocMouseMove(event: MouseEvent): void {
+    if (this._blockDragState) {
+      const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
+      const blocks = Array.from(this.editorEl.nativeElement.children) as HTMLElement[];
+      const { sourceIndex } = this._blockDragState;
+      let gap = 0;
+      for (let i = 0; i < blocks.length; i++) {
+        if (event.clientY > blocks[i].getBoundingClientRect().top + blocks[i].getBoundingClientRect().height / 2) gap = i + 1;
+      }
+      const dropIndex = (gap === sourceIndex || gap === sourceIndex + 1) ? null : gap;
+      this._blockDragState.dropIndex = dropIndex;
+      if (dropIndex === null) {
+        this.reorderIndicator.set(null);
+      } else {
+        const editorRect = this.editorEl.nativeElement.getBoundingClientRect();
+        const y = dropIndex === 0
+          ? blocks[0].getBoundingClientRect().top - areaRect.top
+          : blocks[dropIndex - 1].getBoundingClientRect().bottom - areaRect.top;
+        this.reorderIndicator.set({ x: editorRect.left - areaRect.left, y: y - 1, w: editorRect.width, h: 3 });
+      }
+      this.cdr.markForCheck();
+      return;
+    }
+
     if (this._imgResizeState) {
       const { handle, startX, startY, startW, startH, ratio, containerEl } = this._imgResizeState;
       const img = containerEl.querySelector('img') as HTMLImageElement;
@@ -843,6 +913,29 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   }
 
   private _onDocMouseUp(event: MouseEvent): void {
+    if (this._blockDragState) {
+      const { sourceIndex, dropIndex } = this._blockDragState;
+      this._blockDragState = null;
+      this.reorderIndicator.set(null);
+      if (dropIndex !== null) {
+        this.editor.update(() => {
+          $setSelection(null);
+          const children = $getRoot().getChildren();
+          const src = children[sourceIndex];
+          if (!src) return;
+          if (dropIndex < sourceIndex) {
+            children[dropIndex]?.insertBefore(src);
+          } else {
+            children[dropIndex - 1]?.insertAfter(src);
+          }
+        });
+      }
+      this.editorEl.nativeElement.style.cursor = '';
+      this._detachDocumentHandlers();
+      this.cdr.markForCheck();
+      return;
+    }
+
     if (this._imgResizeState) {
       const { handle, startX, startY, startW, startH, ratio, containerEl } = this._imgResizeState;
       const sign = (handle === 'nw' || handle === 'sw') ? -1 : 1;
@@ -945,6 +1038,23 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     if (this._selectedImgContainer) {
       this._updateImageSelection(this._selectedImgContainer);
     }
+  }
+
+  private _getTopLevelBlock(target: HTMLElement): HTMLElement | null {
+    let el: HTMLElement | null = target;
+    const root = this.editorEl.nativeElement;
+    while (el && el !== root) {
+      if (el.parentElement === root) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  private _updateBlockDragHandle(block: HTMLElement): void {
+    const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
+    const r = block.getBoundingClientRect();
+    this.blockDragHandle.set({ y: r.top - areaRect.top, h: r.height });
+    this.cdr.markForCheck();
   }
 
   private _findImageContainer(target: HTMLElement): HTMLElement | null {
