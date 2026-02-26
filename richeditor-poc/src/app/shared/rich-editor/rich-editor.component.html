@@ -1,40 +1,107 @@
 <div class="rich-editor-wrapper">
   <!-- Toolbar -->
-  <div class="toolbar" role="toolbar" aria-label="Text formatting">
-    <button type="button" class="toolbar-btn" [class.active]="isBold()"
-            (click)="format('bold')" title="Bold (Ctrl+B)">
+  <div
+    class="toolbar"
+    role="toolbar"
+    aria-label="Text formatting"
+    (mousedown)="$event.preventDefault()"
+  >
+    <!-- Block type selector -->
+    <select
+      class="block-select"
+      [value]="blockType()"
+      (mousedown)="$event.stopPropagation()"
+      (change)="setBlockType($any($event.target).value)"
+    >
+      @for (opt of headingOptions; track opt.value) {
+        <option [value]="opt.value">{{ opt.label }}</option>
+      }
+    </select>
+
+    <span class="divider"></span>
+
+    <!-- Inline format -->
+    <button
+      type="button"
+      class="toolbar-btn"
+      [class.active]="isBold()"
+      (click)="format('bold')"
+      title="Bold (Ctrl+B)"
+    >
       <strong>B</strong>
     </button>
-    <button type="button" class="toolbar-btn" [class.active]="isItalic()"
-            (click)="format('italic')" title="Italic (Ctrl+I)">
+    <button
+      type="button"
+      class="toolbar-btn"
+      [class.active]="isItalic()"
+      (click)="format('italic')"
+      title="Italic (Ctrl+I)"
+    >
       <em>I</em>
     </button>
-    <button type="button" class="toolbar-btn" [class.active]="isUnderline()"
-            (click)="format('underline')" title="Underline (Ctrl+U)">
+    <button
+      type="button"
+      class="toolbar-btn"
+      [class.active]="isUnderline()"
+      (click)="format('underline')"
+      title="Underline (Ctrl+U)"
+    >
       <u>U</u>
     </button>
 
     <span class="divider"></span>
 
-    <button type="button" class="toolbar-btn"
-            (click)="insertUnorderedList()" title="Bullet List">
+    <!-- Lists -->
+    <button
+      type="button"
+      class="toolbar-btn"
+      [class.active]="listType() === 'bullet'"
+      (click)="insertUnorderedList()"
+      title="Toggle Bullet List"
+    >
       &#8226;&#8212;
     </button>
-    <button type="button" class="toolbar-btn"
-            (click)="insertOrderedList()" title="Numbered List">
+    <button
+      type="button"
+      class="toolbar-btn"
+      [class.active]="listType() === 'number'"
+      (click)="insertOrderedList()"
+      title="Toggle Numbered List"
+    >
       1&#8212;
     </button>
 
     <span class="divider"></span>
 
+    <!-- Undo / Redo -->
     <button type="button" class="toolbar-btn" (click)="undo()" title="Undo (Ctrl+Z)">↩</button>
     <button type="button" class="toolbar-btn" (click)="redo()" title="Redo (Ctrl+Y)">↪</button>
+
+    <span class="divider"></span>
+
+    <!-- Image upload -->
+    <label class="toolbar-btn" title="Insert Image" style="cursor: pointer">
+      🖼
+      <input
+        type="file"
+        accept="image/*"
+        style="display: none"
+        (mousedown)="$event.stopPropagation()"
+        (change)="onImageFileSelected($event)"
+      />
+    </label>
+
+    <!-- Insert Table -->
+    <button type="button" class="toolbar-btn" title="Insert 3×3 Table" (click)="insertTable(3, 3)">
+      ⊞
+    </button>
   </div>
 
   <!-- Editor contenteditable area -->
-  <div #editorEl
-       class="editor-content"
-       contenteditable="true"
-       data-placeholder="Enter rich text here...">
-  </div>
+  <div
+    #editorEl
+    class="editor-content"
+    contenteditable="true"
+    data-placeholder="Type here... (supports Markdown: ## Heading, **bold**, `code`, ``` code block)"
+  ></div>
 </div>

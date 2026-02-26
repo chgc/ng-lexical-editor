@@ -23,6 +23,18 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.block-select {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  font-size: 13px;
+  cursor: pointer;
+  color: #374151;
+  &:focus { outline: none; border-color: #6366f1; }
+}
+
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
@@ -66,17 +78,58 @@
   line-height: 1.6;
   color: #111827;
 
-  // Placeholder
+  // Placeholder (this works without ng-deep because :empty matches the host element state)
   &:empty::before {
     content: attr(data-placeholder);
     color: #9ca3af;
     pointer-events: none;
   }
 
-  // Lexical paragraph
-  p { margin: 0 0 4px; }
+  // All inner content is inserted by Lexical (no Angular _ngcontent attr) → ::ng-deep required
+  ::ng-deep {
+    p { margin: 0 0 4px; }
 
-  // List styles
-  ul { list-style: disc; padding-left: 24px; margin: 4px 0; }
-  ol { list-style: decimal; padding-left: 24px; margin: 4px 0; }
+    ul { list-style: disc; padding-left: 24px; margin: 4px 0; }
+    ol { list-style: decimal; padding-left: 24px; margin: 4px 0; }
+
+    h1 { font-size: 1.8em; font-weight: 700; margin: 8px 0 4px; }
+    h2 { font-size: 1.4em; font-weight: 600; margin: 6px 0 4px; }
+    h3 { font-size: 1.15em; font-weight: 600; margin: 4px 0; }
+
+    code {
+      font-family: 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.88em;
+      background: #f3f4f6;
+      border-radius: 3px;
+      padding: 0 4px;
+    }
+    pre {
+      background: #1e1b4b;
+      color: #c7d2fe;
+      padding: 14px 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 8px 0;
+      code { background: transparent; color: inherit; padding: 0; }
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0;
+      font-size: 0.95em;
+    }
+    th, td {
+      border: 1px solid #d1d5db;
+      padding: 6px 10px;
+      min-width: 60px;
+      position: relative;
+    }
+    th {
+      background: #f3f4f6;
+      font-weight: 600;
+      text-align: left;
+    }
+    tr:nth-child(even) td { background: #fafafa; }
+  }
 }
