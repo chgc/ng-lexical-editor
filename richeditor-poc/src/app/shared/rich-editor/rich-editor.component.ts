@@ -48,7 +48,7 @@ import {
   registerTablePlugin,
   registerTableSelectionObserver,
 } from '@lexical/table';
-import { ImageNode, $createImageNode } from './nodes/image.node';
+import { ImageNode, $createImageNode, $isImageNode } from './nodes/image.node';
 import {
   registerRichText,
   HeadingNode,
@@ -69,7 +69,11 @@ import {
 import { LinkNode, AutoLinkNode } from '@lexical/link';
 import { CodeNode, CodeHighlightNode, registerCodeHighlighting } from '@lexical/code';
 import { mergeRegister } from '@lexical/utils';
-import { $setBlocksType, $patchStyleText, $getSelectionStyleValueForProperty } from '@lexical/selection';
+import {
+  $setBlocksType,
+  $patchStyleText,
+  $getSelectionStyleValueForProperty,
+} from '@lexical/selection';
 import {
   HEADING,
   QUOTE,
@@ -85,8 +89,16 @@ import {
 } from '@lexical/markdown';
 
 const MD_TRANSFORMERS = [
-  HEADING, QUOTE, UNORDERED_LIST, ORDERED_LIST,
-  BOLD_ITALIC_STAR, BOLD_STAR, ITALIC_STAR, STRIKETHROUGH, INLINE_CODE, CODE,
+  HEADING,
+  QUOTE,
+  UNORDERED_LIST,
+  ORDERED_LIST,
+  BOLD_ITALIC_STAR,
+  BOLD_STAR,
+  ITALIC_STAR,
+  STRIKETHROUGH,
+  INLINE_CODE,
+  CODE,
 ];
 
 const EDITOR_THEME = {
@@ -125,20 +137,23 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
   private cdr = inject(ChangeDetectorRef);
 
-  isBold          = signal(false);
-  isItalic        = signal(false);
-  isUnderline     = signal(false);
+  isBold = signal(false);
+  isItalic = signal(false);
+  isUnderline = signal(false);
   isStrikethrough = signal(false);
-  fontColor       = signal('#000000');
-  bgColor         = signal('#ffffff');
-  listType        = signal<'none' | 'bullet' | 'number'>('none');
-  blockType       = signal<HeadingTag>('paragraph');
-  textAlign       = signal<'left' | 'center' | 'right' | ''>('');
+  fontColor = signal('#000000');
+  bgColor = signal('#ffffff');
+  listType = signal<'none' | 'bullet' | 'number'>('none');
+  blockType = signal<HeadingTag>('paragraph');
+  textAlign = signal<'left' | 'center' | 'right' | ''>('');
 
   // Table context menu
   tableMenu = signal<{
-    x: number; y: number;
-    canMerge: boolean; canSplit: boolean; isRowHeader: boolean;
+    x: number;
+    y: number;
+    canMerge: boolean;
+    canSplit: boolean;
+    isRowHeader: boolean;
     vAlign: string;
   } | null>(null);
   private _contextMenuCell: HTMLElement | null = null;
@@ -151,16 +166,20 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   // Resize / reorder visual indicators
   resizeIndicator = signal<{ vertical: boolean; position: number } | null>(null);
   reorderIndicator = signal<{ x: number; y: number; w: number; h: number } | null>(null);
+  imageSelection = signal<{ x: number; y: number; w: number; h: number } | null>(null);
 
   // ── Private drag/resize state ──────────────────────────────────────────────
   private _colResizeState: {
-    colIndex: number; tableEl: HTMLTableElement;
-    startX: number; startWidth: number;
+    colIndex: number;
+    tableEl: HTMLTableElement;
+    startX: number;
+    startWidth: number;
   } | null = null;
 
   private _rowResizeState: {
     rowEl: HTMLTableRowElement;
-    startY: number; startHeight: number;
+    startY: number;
+    startHeight: number;
   } | null = null;
 
   private _reorderState: {
@@ -171,8 +190,19 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     currentDropGap: number | null;
   } | null = null;
 
-  private readonly _boundDocMouseMove = (e: MouseEvent) => this._onDocMouseMove(e);
-  private readonly _boundDocMouseUp   = (e: MouseEvent) => this._onDocMouseUp(e);
+  private _imgResizeState: {
+    handle: 'nw' | 'ne' | 'sw' | 'se';
+    startX: number; startY: number;
+    startW: number; startH: number;
+    ratio: number;           // height / width — locked aspect ratio
+    containerEl: HTMLElement;
+  } | null = null;
+  private _selectedImgContainer: HTMLElement | null = null;
+
+  private readonly _boundDocMouseMove  = (e: MouseEvent) => this._onDocMouseMove(e);
+  private readonly _boundDocMouseUp    = (e: MouseEvent) => this._onDocMouseUp(e);
+  private readonly _boundEditorScroll  = () => this._onEditorScroll();
+  private readonly _boundImgKeyDown    = (e: KeyboardEvent) => this._onImgKeyDown(e);
 
   readonly headingOptions: { label: string; value: HeadingTag }[] = [
     { label: 'Normal', value: 'paragraph' },
@@ -221,7 +251,13 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       registerTableSelectionObserver(this.editor),
       this.editor.registerUpdateListener(({ editorState }) => {
         const json = JSON.stringify(editorState.toJSON());
-        queueMicrotask(() => this.onChangeFn(json));
+        queueMicrotask(() => {
+          this.onChangeFn(json);
+          // Re-sync image selection box after DOM reconcile (covers text deletion / content shift)
+          if (this._selectedImgContainer) {
+            this._updateImageSelection(this._selectedImgContainer);
+          }
+        });
         this.editor.read(() => this.syncToolbarFromState());
       }),
       this.editor.registerCommand(
@@ -238,11 +274,16 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       this.applyValue(this.pendingValue);
       this.pendingValue = undefined;
     }
+
+    // Keep image selection box in sync when editor content scrolls
+    this.editorEl.nativeElement.addEventListener('scroll', this._boundEditorScroll);
   }
 
   ngOnDestroy(): void {
     this.cleanup?.();
     this._detachDocumentHandlers();
+    this.editorEl.nativeElement.removeEventListener('scroll', this._boundEditorScroll);
+    document.removeEventListener('keydown', this._boundImgKeyDown, true);
   }
 
   // ── Toolbar actions ────────────────────────────────────────────────────────
@@ -300,6 +341,14 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       } else {
         $getRoot().append(imageNode);
       }
+      // Ensure a paragraph exists after the image so the user can type below it
+      if (!imageNode.getNextSibling()) {
+        imageNode.insertAfter($createParagraphNode());
+      }
+      // Ensure a paragraph exists before the image so the user can type above it
+      if (!imageNode.getPreviousSibling()) {
+        imageNode.insertBefore($createParagraphNode());
+      }
     });
   }
 
@@ -328,40 +377,48 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     if (!file) return;
     input.value = '';
 
-    const TARGET_BYTES = 128 * 1024;              // 128 KB target
-    const TARGET_SIZE  = TARGET_BYTES * (4 / 3);  // base64 chars ≈ bytes × 4/3
+    const TARGET_BYTES = 128 * 1024; // 128 KB target
+    const TARGET_SIZE = TARGET_BYTES * (4 / 3); // base64 chars ≈ bytes × 4/3
 
     const reader = new FileReader();
     reader.onload = (e) => {
       const originalSrc = e.target?.result as string;
       if (!originalSrc) return;
 
-      if (file.size <= 1024 * 1024) {
+      if (file.size <= TARGET_BYTES) {
         this.insertImage(originalSrc, file.name);
         return;
       }
 
-      // > 1 MB — compress via canvas until base64 string length ≤ TARGET_SIZE
+      // > 128 KB — compress via canvas until base64 string length ≤ TARGET_SIZE
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        canvas.width  = img.naturalWidth;
+        canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0);
 
         // Binary-search for best JPEG quality that fits
-        let lo = 0.1, hi = 0.92, result = originalSrc, bestQ = 0.9;
+        let lo = 0.1,
+          hi = 0.92,
+          result = originalSrc,
+          bestQ = 0.9;
         for (let i = 0; i < 8; i++) {
           const mid = (lo + hi) / 2;
           const candidate = canvas.toDataURL('image/jpeg', mid);
           if (candidate.length > TARGET_SIZE) hi = mid;
-          else { lo = mid; result = candidate; bestQ = mid; }
+          else {
+            lo = mid;
+            result = candidate;
+            bestQ = mid;
+          }
         }
 
         // Still too large? shrink dimensions progressively (80% per step)
         if (result.length > TARGET_SIZE) {
-          let w = img.naturalWidth, h = img.naturalHeight;
+          let w = img.naturalWidth,
+            h = img.naturalHeight;
           while (result.length > TARGET_SIZE && w > 100) {
             w = Math.floor(w * 0.8);
             h = Math.floor(h * 0.8);
@@ -400,7 +457,14 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
             isRowHeader = cellNode.hasHeaderState(TableCellHeaderStates.ROW);
             vAlign = cellNode.getVerticalAlign() ?? '';
           }
-          this.tableMenu.set({ x: event.clientX, y: event.clientY, canMerge, canSplit, isRowHeader, vAlign });
+          this.tableMenu.set({
+            x: event.clientX,
+            y: event.clientY,
+            canMerge,
+            canSplit,
+            isRowHeader,
+            vAlign,
+          });
           this.cdr.markForCheck();
         });
         return;
@@ -424,20 +488,38 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
         // Delete operations must preserve an existing TableSelection (multi-cell).
         // V align and toggleRowHeader operate on the cell node directly (no selection needed).
         // Insert/split use the action-button's cell as the cursor anchor.
-        const needsCellAnchor = !['mergeCells', 'deleteRow', 'deleteCol',
-          'vAlignTop', 'vAlignMiddle', 'vAlignBottom'].includes(action);
+        const needsCellAnchor = ![
+          'mergeCells',
+          'deleteRow',
+          'deleteCol',
+          'vAlignTop',
+          'vAlignMiddle',
+          'vAlignBottom',
+        ].includes(action);
         if (needsCellAnchor && cellDOM) {
           const cellNode = $getNearestNodeFromDOMNode(cellDOM);
           if ($isTableCellNode(cellNode)) cellNode.selectStart();
         }
         const sel = $getSelection();
         switch (action) {
-          case 'insertRowAbove':    $insertTableRowAtSelection(false); break;
-          case 'insertRowBelow':    $insertTableRowAtSelection(true);  break;
-          case 'insertColLeft':     $insertTableColumnAtSelection(false); break;
-          case 'insertColRight':    $insertTableColumnAtSelection(true);  break;
-          case 'deleteRow':         $deleteTableRowAtSelection(); break;
-          case 'deleteCol':         $deleteTableColumnAtSelection(); break;
+          case 'insertRowAbove':
+            $insertTableRowAtSelection(false);
+            break;
+          case 'insertRowBelow':
+            $insertTableRowAtSelection(true);
+            break;
+          case 'insertColLeft':
+            $insertTableColumnAtSelection(false);
+            break;
+          case 'insertColRight':
+            $insertTableColumnAtSelection(true);
+            break;
+          case 'deleteRow':
+            $deleteTableRowAtSelection();
+            break;
+          case 'deleteCol':
+            $deleteTableColumnAtSelection();
+            break;
           case 'vAlignTop':
           case 'vAlignMiddle':
           case 'vAlignBottom': {
@@ -445,7 +527,12 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
               const cn = $getNearestNodeFromDOMNode(cellDOM);
               if ($isTableCellNode(cn)) {
                 // Lexical only recognises 'middle' and 'bottom' as valid; 'top' = undefined (CSS default)
-                const v = action === 'vAlignMiddle' ? 'middle' : action === 'vAlignBottom' ? 'bottom' : undefined;
+                const v =
+                  action === 'vAlignMiddle'
+                    ? 'middle'
+                    : action === 'vAlignBottom'
+                      ? 'bottom'
+                      : undefined;
                 cn.setVerticalAlign(v);
               }
             }
@@ -457,7 +544,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
               if ($isTableCellNode(cellNode)) {
                 const row = cellNode.getParent();
                 if ($isTableRowNode(row)) {
-                  row.getChildren().forEach(child => {
+                  row.getChildren().forEach((child) => {
                     if ($isTableCellNode(child)) child.toggleHeaderStyle(TableCellHeaderStates.ROW);
                   });
                 }
@@ -471,7 +558,9 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
               if (cells.length > 1) $mergeCells(cells);
             }
             break;
-          case 'splitCell': $unmergeCell(); break;
+          case 'splitCell':
+            $unmergeCell();
+            break;
         }
       });
     });
@@ -508,7 +597,10 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
     // Cursor change logic
     if (this._colResizeState || this._rowResizeState || this._reorderState) return;
-    if (!cell) { this.editorEl.nativeElement.style.cursor = ''; return; }
+    if (!cell) {
+      this.editorEl.nativeElement.style.cursor = '';
+      return;
+    }
 
     const rect = cell.getBoundingClientRect();
     const relX = event.clientX - rect.left;
@@ -571,12 +663,34 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
         vAlign = cellNode.getVerticalAlign() ?? '';
       }
       const btnRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-      this.tableMenu.set({ x: btnRect.left, y: btnRect.bottom + 4, canMerge, canSplit, isRowHeader, vAlign });
+      this.tableMenu.set({
+        x: btnRect.left,
+        y: btnRect.bottom + 4,
+        canMerge,
+        canSplit,
+        isRowHeader,
+        vAlign,
+      });
       this.cdr.markForCheck();
     });
   }
 
+  onEditorClick(event: MouseEvent): void {
+    const container = this._findImageContainer(event.target as HTMLElement);
+    if (container) {
+      this._selectImage(container);
+      event.stopPropagation();
+    }
+  }
+
   onEditorMouseDown(event: MouseEvent): void {
+    // Deselect image when clicking anywhere in editor (image selection handled in onEditorClick)
+    // but do NOT deselect if clicking in same image
+    const clickedImg = this._findImageContainer(event.target as HTMLElement);
+    if (!clickedImg) {
+      this._deselectImage();
+    }
+
     const cell = this._findTableCell(event.target as HTMLElement);
     if (!cell) return;
     const table = cell.closest('table') as HTMLTableElement;
@@ -591,7 +705,12 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     if (relX >= rect.width - 6) {
       // Start column resize
       event.preventDefault();
-      this._colResizeState = { colIndex, tableEl: table, startX: event.clientX, startWidth: rect.width };
+      this._colResizeState = {
+        colIndex,
+        tableEl: table,
+        startX: event.clientX,
+        startWidth: rect.width,
+      };
       this._attachDocumentHandlers();
     } else if (relY >= rect.height - 6) {
       // Start row resize
@@ -602,7 +721,8 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       // Start column reorder — top strip of header cell (checked before row reorder)
       event.preventDefault();
       this._reorderState = {
-        type: 'col', tableEl: table,
+        type: 'col',
+        tableEl: table,
         sourceIndex: colIndex,
         currentDropGap: null,
       };
@@ -612,7 +732,8 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       // Start row reorder — left strip of ANY cell (TD or TH)
       event.preventDefault();
       this._reorderState = {
-        type: 'row', tableEl: table,
+        type: 'row',
+        tableEl: table,
         sourceIndex: rowEl.rowIndex,
         currentDropGap: null,
       };
@@ -621,7 +742,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     }
   }
 
-  private readonly _boundSelectStart   = (e: Event) => e.preventDefault();
+  private readonly _boundSelectStart = (e: Event) => e.preventDefault();
 
   private _attachDocumentHandlers(): void {
     // Hide action button while dragging
@@ -632,7 +753,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     this.editorEl.nativeElement.style.pointerEvents = 'none'; // stops Lexical from tracking mouse
     document.addEventListener('selectstart', this._boundSelectStart);
     document.addEventListener('mousemove', this._boundDocMouseMove);
-    document.addEventListener('mouseup',   this._boundDocMouseUp);
+    document.addEventListener('mouseup', this._boundDocMouseUp);
   }
 
   private _detachDocumentHandlers(): void {
@@ -640,23 +761,51 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     this.editorEl.nativeElement.style.pointerEvents = '';
     document.removeEventListener('selectstart', this._boundSelectStart);
     document.removeEventListener('mousemove', this._boundDocMouseMove);
-    document.removeEventListener('mouseup',   this._boundDocMouseUp);
+    document.removeEventListener('mouseup', this._boundDocMouseUp);
   }
 
   private _onDocMouseMove(event: MouseEvent): void {
+    if (this._imgResizeState) {
+      const { handle, startX, startY, startW, startH, ratio, containerEl } = this._imgResizeState;
+      const img = containerEl.querySelector('img') as HTMLImageElement;
+      // Left-side handles: dragging left grows; right-side: dragging right grows
+      const sign = (handle === 'nw' || handle === 'sw') ? -1 : 1;
+      const dx = (event.clientX - startX) * sign;
+      const dy = (event.clientY - startY) * ((handle === 'nw' || handle === 'ne') ? -1 : 1);
+      const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy / ratio;
+      const newW = Math.max(50, startW + delta);
+      const newH = newW * ratio;
+      img.style.width  = newW + 'px';
+      img.style.height = newH + 'px';
+      const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
+      const imgRect  = img.getBoundingClientRect();
+      this.imageSelection.set({
+        x: imgRect.left - areaRect.left,
+        y: imgRect.top  - areaRect.top,
+        w: imgRect.width,
+        h: imgRect.height,
+      });
+      this.cdr.detectChanges();
+      return;
+    }
+
     const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
 
     if (this._colResizeState) {
       const { startX, startWidth, colIndex, tableEl } = this._colResizeState;
       const newWidth = Math.max(40, startWidth + event.clientX - startX);
       // Live DOM preview
-      Array.from(tableEl.rows).forEach(row => {
-        const c = row.cells[colIndex]; if (c) c.style.width = newWidth + 'px';
+      Array.from(tableEl.rows).forEach((row) => {
+        const c = row.cells[colIndex];
+        if (c) c.style.width = newWidth + 'px';
       });
       // Indicator line position (right edge of resized column)
       const cell = tableEl.rows[0]?.cells[colIndex];
       if (cell) {
-        this.resizeIndicator.set({ vertical: true, position: cell.getBoundingClientRect().right - areaRect.left });
+        this.resizeIndicator.set({
+          vertical: true,
+          position: cell.getBoundingClientRect().right - areaRect.left,
+        });
         this.cdr.markForCheck();
       }
       return;
@@ -666,7 +815,10 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       const { startY, startHeight, rowEl } = this._rowResizeState;
       const newHeight = Math.max(24, startHeight + event.clientY - startY);
       rowEl.style.height = newHeight + 'px';
-      this.resizeIndicator.set({ vertical: false, position: rowEl.getBoundingClientRect().bottom - areaRect.top });
+      this.resizeIndicator.set({
+        vertical: false,
+        position: rowEl.getBoundingClientRect().bottom - areaRect.top,
+      });
       this.cdr.markForCheck();
       return;
     }
@@ -676,24 +828,48 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       if (type === 'row') {
         const gap = this._calcRowDropGap(event, tableEl, sourceIndex);
         this._reorderState.currentDropGap = gap;
-        this.reorderIndicator.set(gap === null ? null : this._rowIndicatorRect(gap, tableEl, areaRect));
+        this.reorderIndicator.set(
+          gap === null ? null : this._rowIndicatorRect(gap, tableEl, areaRect),
+        );
       } else {
         const gap = this._calcColDropGap(event, tableEl, sourceIndex);
         this._reorderState.currentDropGap = gap;
-        this.reorderIndicator.set(gap === null ? null : this._colIndicatorRect(gap, tableEl, areaRect));
+        this.reorderIndicator.set(
+          gap === null ? null : this._colIndicatorRect(gap, tableEl, areaRect),
+        );
       }
       this.cdr.markForCheck();
     }
   }
 
   private _onDocMouseUp(event: MouseEvent): void {
+    if (this._imgResizeState) {
+      const { handle, startX, startY, startW, startH, ratio, containerEl } = this._imgResizeState;
+      const sign = (handle === 'nw' || handle === 'sw') ? -1 : 1;
+      const dx = (event.clientX - startX) * sign;
+      const dy = (event.clientY - startY) * ((handle === 'nw' || handle === 'ne') ? -1 : 1);
+      const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy / ratio;
+      const newW = Math.max(50, startW + delta);
+      const newH = newW * ratio;
+      this._imgResizeState = null;
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', this._boundDocMouseMove);
+      document.removeEventListener('mouseup',   this._boundDocMouseUp);
+      this.editor.update(() => {
+        const node = $getNearestNodeFromDOMNode(containerEl);
+        if ($isImageNode(node)) node.setDimensions(newW, newH);
+      });
+      this._updateImageSelection(containerEl);
+      return;
+    }
+
     if (this._colResizeState) {
       const { startX, startWidth, colIndex, tableEl } = this._colResizeState;
       const newWidth = Math.max(40, startWidth + event.clientX - startX);
       this._colResizeState = null;
       this.resizeIndicator.set(null);
       this.editor.update(() => {
-        Array.from(tableEl.rows).forEach(row => {
+        Array.from(tableEl.rows).forEach((row) => {
           const cellEl = row.cells[colIndex];
           if (!cellEl) return;
           const n = $getNearestNodeFromDOMNode(cellEl);
@@ -733,7 +909,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
               rows[currentDropGap - 1]?.insertAfter(src);
             }
           } else {
-            tableNode.getChildren().forEach(rowNode => {
+            tableNode.getChildren().forEach((rowNode) => {
               if (!$isTableRowNode(rowNode)) return;
               const cells = rowNode.getChildren();
               const src = cells[sourceIndex];
@@ -765,15 +941,89 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     return null;
   }
 
+  private _onEditorScroll(): void {
+    if (this._selectedImgContainer) {
+      this._updateImageSelection(this._selectedImgContainer);
+    }
+  }
+
+  private _findImageContainer(target: HTMLElement): HTMLElement | null {
+    let el: HTMLElement | null = target;
+    while (el && el !== this.editorEl.nativeElement) {
+      if (el.classList.contains('lx-image-container')) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  private _selectImage(container: HTMLElement): void {
+    this._selectedImgContainer = container;
+    this._updateImageSelection(container);
+    document.addEventListener('keydown', this._boundImgKeyDown, true);
+  }
+
+  private _deselectImage(): void {
+    this._selectedImgContainer = null;
+    this.imageSelection.set(null);
+    document.removeEventListener('keydown', this._boundImgKeyDown, true);
+    this.cdr.markForCheck();
+  }
+
+  private _onImgKeyDown(e: KeyboardEvent): void {
+    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    const container = this._selectedImgContainer;
+    if (!container) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this._deselectImage();
+    this.editor.update(() => {
+      const node = $getNearestNodeFromDOMNode(container);
+      if ($isImageNode(node)) node.remove();
+    });
+  }
+
+  private _updateImageSelection(container: HTMLElement): void {
+    const img = container.querySelector('img') as HTMLImageElement | null;
+    const ref = img ?? container;
+    const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
+    const r = ref.getBoundingClientRect();
+    this.imageSelection.set({
+      x: r.left - areaRect.left,
+      y: r.top  - areaRect.top,
+      w: r.width,
+      h: r.height,
+    });
+    this.cdr.detectChanges();
+  }
+
+  startImgResize(event: MouseEvent, handle: 'nw' | 'ne' | 'sw' | 'se'): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const container = this._selectedImgContainer;
+    if (!container) return;
+    const img = container.querySelector('img') as HTMLImageElement;
+    const rect = img.getBoundingClientRect();
+    this._imgResizeState = {
+      handle,
+      startX: event.clientX, startY: event.clientY,
+      startW: rect.width,    startH: rect.height,
+      ratio:  rect.height / rect.width,
+      containerEl: container,
+    };
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', this._boundDocMouseMove);
+    document.addEventListener('mouseup',   this._boundDocMouseUp);
+  }
+
   private _updateTableActionBtn(cell: HTMLElement): void {
     if (this._actionBtnCell === cell) return; // no change
     this._actionBtnCell = cell;
     const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
-    const cellRect  = cell.getBoundingClientRect();
+    const cellRect = cell.getBoundingClientRect();
     const BTN = 22;
     this.tableActionBtn.set({
-      x: cellRect.right  - areaRect.left - BTN - 3,
-      y: cellRect.top    - areaRect.top  + 3,
+      x: cellRect.right - areaRect.left - BTN - 3,
+      y: cellRect.top - areaRect.top + 3,
     });
     this.cdr.markForCheck();
   }
@@ -783,17 +1033,25 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
    * Gap 0 = before first item, gap n = after last item.
    * Returns null when cursor is in the no-op zone (gaps adjacent to sourceIndex).
    */
-  private _calcRowDropGap(event: MouseEvent, tableEl: HTMLTableElement, sourceIndex: number): number | null {
+  private _calcRowDropGap(
+    event: MouseEvent,
+    tableEl: HTMLTableElement,
+    sourceIndex: number,
+  ): number | null {
     let gap = 0;
     Array.from(tableEl.rows).forEach((row, i) => {
       const r = row.getBoundingClientRect();
       if (event.clientY > r.top + r.height / 2) gap = i + 1;
     });
     // Gaps sourceIndex and sourceIndex+1 are both no-ops (item stays in same place)
-    return (gap === sourceIndex || gap === sourceIndex + 1) ? null : gap;
+    return gap === sourceIndex || gap === sourceIndex + 1 ? null : gap;
   }
 
-  private _calcColDropGap(event: MouseEvent, tableEl: HTMLTableElement, sourceIndex: number): number | null {
+  private _calcColDropGap(
+    event: MouseEvent,
+    tableEl: HTMLTableElement,
+    sourceIndex: number,
+  ): number | null {
     const firstRow = tableEl.rows[0];
     if (!firstRow) return null;
     let gap = 0;
@@ -801,15 +1059,16 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       const r = cell.getBoundingClientRect();
       if (event.clientX > r.left + r.width / 2) gap = i + 1;
     });
-    return (gap === sourceIndex || gap === sourceIndex + 1) ? null : gap;
+    return gap === sourceIndex || gap === sourceIndex + 1 ? null : gap;
   }
 
   /** Single horizontal line at the gap position (top of first row or bottom of row gap-1). */
   private _rowIndicatorRect(gap: number, tableEl: HTMLTableElement, areaRect: DOMRect) {
     const tableRect = tableEl.getBoundingClientRect();
-    const y = gap === 0
-      ? tableEl.rows[0].getBoundingClientRect().top - areaRect.top
-      : tableEl.rows[gap - 1].getBoundingClientRect().bottom - areaRect.top;
+    const y =
+      gap === 0
+        ? tableEl.rows[0].getBoundingClientRect().top - areaRect.top
+        : tableEl.rows[gap - 1].getBoundingClientRect().bottom - areaRect.top;
     return { x: tableRect.left - areaRect.left, y: y - 1, w: tableRect.width, h: 3 };
   }
 
@@ -817,9 +1076,10 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   private _colIndicatorRect(gap: number, tableEl: HTMLTableElement, areaRect: DOMRect) {
     const tableRect = tableEl.getBoundingClientRect();
     const firstRow = tableEl.rows[0];
-    const x = gap === 0
-      ? firstRow.cells[0].getBoundingClientRect().left - areaRect.left
-      : firstRow.cells[gap - 1].getBoundingClientRect().right - areaRect.left;
+    const x =
+      gap === 0
+        ? firstRow.cells[0].getBoundingClientRect().left - areaRect.left
+        : firstRow.cells[gap - 1].getBoundingClientRect().right - areaRect.left;
     return { x: x - 1, y: tableRect.top - areaRect.top, w: 3, h: tableRect.height };
   }
 
