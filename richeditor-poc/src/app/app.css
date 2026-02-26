@@ -1,0 +1,81 @@
+.demo-container {
+  max-width: 780px;
+  margin: 40px auto;
+  padding: 0 20px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+.demo-container h1 { margin-bottom: 4px; color: #1e1b4b; }
+.demo-container .subtitle { color: #6b7280; margin-bottom: 32px; font-size: 14px; }
+.demo-container a { color: #6366f1; }
+
+.field { margin-bottom: 20px; }
+.field label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+.field input[type="text"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 15px;
+  box-sizing: border-box;
+  outline: none;
+}
+.field input[type="text"]:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.actions { display: flex; gap: 8px; margin-top: 24px; }
+
+.btn-submit {
+  padding: 8px 24px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.btn-submit:hover { background: #4f46e5; }
+
+.btn-reset {
+  padding: 8px 24px;
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.btn-reset:hover { background: #f3f4f6; }
+
+.debug-panel {
+  margin-top: 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.debug-panel summary {
+  padding: 10px 14px;
+  background: #f9fafb;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  user-select: none;
+}
+.debug-panel pre {
+  padding: 12px 14px;
+  font-size: 12px;
+  overflow: auto;
+  max-height: 300px;
+  background: #1e1b4b;
+  color: #c7d2fe;
+  margin: 0;
+  word-break: break-all;
+  white-space: pre-wrap;
+}

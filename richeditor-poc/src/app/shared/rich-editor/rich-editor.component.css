@@ -1,0 +1,293 @@
+:host { display: block; }
+
+.rich-editor-wrapper {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+.rich-editor-wrapper:focus-within {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.editor-area { position: relative; overflow: hidden; }
+
+.editor-content {
+  min-height: 160px;
+  max-height: 480px;
+  padding: 12px 16px 12px 32px;
+  overflow-y: auto;
+  outline: none;
+  line-height: 1.6;
+  color: #111827;
+}
+.editor-content:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+/* Lexical-rendered content (no Angular encapsulation attr → ::ng-deep required) */
+.editor-content ::ng-deep p { margin: 0 0 4px; }
+.editor-content ::ng-deep ul { list-style: disc; padding-left: 24px; margin: 4px 0; }
+.editor-content ::ng-deep ol { list-style: decimal; padding-left: 24px; margin: 4px 0; }
+.editor-content ::ng-deep h1 { font-size: 1.8em; font-weight: 700; margin: 8px 0 4px; }
+.editor-content ::ng-deep h2 { font-size: 1.4em; font-weight: 600; margin: 6px 0 4px; }
+.editor-content ::ng-deep h3 { font-size: 1.15em; font-weight: 600; margin: 4px 0; }
+.editor-content ::ng-deep h4 { font-size: 1.0em;  font-weight: 600; margin: 4px 0; }
+.editor-content ::ng-deep h5 { font-size: 0.9em;  font-weight: 600; margin: 4px 0; color: #4b5563; }
+.editor-content ::ng-deep h6 { font-size: 0.85em; font-weight: 600; margin: 4px 0; color: #6b7280; }
+.editor-content ::ng-deep blockquote {
+  margin: 6px 0;
+  padding: 6px 12px;
+  border-left: 4px solid #6366f1;
+  background: #f5f3ff;
+  color: #4b5563;
+  border-radius: 0 4px 4px 0;
+  font-style: italic;
+}
+
+.editor-content ::ng-deep .lx-underline               { text-decoration: underline; }
+.editor-content ::ng-deep .lx-strikethrough            { text-decoration: line-through; }
+.editor-content ::ng-deep .lx-underline-strikethrough  { text-decoration: underline line-through; }
+
+.editor-content ::ng-deep .lx-inline-code {
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.88em;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.editor-content ::ng-deep .lx-code-block {
+  display: block;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.875em;
+  line-height: 1.6;
+  padding: 14px 18px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* Syntax highlighting tokens (Catppuccin Mocha) */
+.editor-content ::ng-deep .lx-tk-comment    { color: #6c7086; font-style: italic; }
+.editor-content ::ng-deep .lx-tk-string     { color: #a6e3a1; }
+.editor-content ::ng-deep .lx-tk-keyword    { color: #cba6f7; font-weight: 600; }
+.editor-content ::ng-deep .lx-tk-function   { color: #89b4fa; }
+.editor-content ::ng-deep .lx-tk-number     { color: #fab387; }
+.editor-content ::ng-deep .lx-tk-operator   { color: #89dceb; }
+.editor-content ::ng-deep .lx-tk-property   { color: #f38ba8; }
+.editor-content ::ng-deep .lx-tk-punctuation { color: #9399b2; }
+.editor-content ::ng-deep .lx-tk-selector   { color: #94e2d5; }
+.editor-content ::ng-deep .lx-tk-variable   { color: #cdd6f4; }
+.editor-content ::ng-deep .lx-tk-tag        { color: #f38ba8; }
+.editor-content ::ng-deep .lx-tk-attr       { color: #89b4fa; }
+.editor-content ::ng-deep .lx-tk-regex      { color: #fab387; }
+
+.editor-content ::ng-deep pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.editor-content ::ng-deep pre code { background: transparent; color: inherit; padding: 0; border: none; }
+
+.editor-content ::ng-deep table,
+.editor-content ::ng-deep .lx-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 0.95em;
+}
+.editor-content ::ng-deep th,
+.editor-content ::ng-deep td,
+.editor-content ::ng-deep .lx-table-cell,
+.editor-content ::ng-deep .lx-table-cell-header {
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  min-width: 60px;
+  position: relative;
+  background: #fff;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.editor-content ::ng-deep th,
+.editor-content ::ng-deep .lx-table-cell-header {
+  background: #f3f4f6;
+  font-weight: 600;
+  text-align: left;
+}
+.editor-content ::ng-deep .lx-table-cell-selected {
+  background-color: #dbeafe !important;
+  caret-color: transparent;
+}
+.editor-content ::ng-deep .lx-table-selection {
+  outline: 2px solid #3b82f6;
+  outline-offset: -1px;
+}
+
+.editor-content ::ng-deep .lx-image-container {
+  display: block;
+  margin: 8px 0;
+  line-height: 0;
+}
+.editor-content ::ng-deep .lx-image-container img {
+  display: block;
+  max-width: 100%;
+  border-radius: 4px;
+  user-select: none;
+}
+
+/* Table cell action button */
+.table-action-btn {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  color: #6b7280;
+  padding: 0;
+  z-index: 15;
+  transition: background 0.1s, color 0.1s;
+}
+.table-action-btn:hover { background: #f3f4f6; color: #111827; border-color: #9ca3af; }
+
+.block-drag-handle {
+  position: absolute;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #d1d5db;
+  cursor: grab;
+  font-size: 14px;
+  padding: 0;
+  z-index: 8;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  user-select: none;
+}
+.block-drag-handle:hover { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+.block-drag-handle:active { cursor: grabbing; }
+
+.image-resize-box {
+  position: absolute;
+  pointer-events: none;
+  border: 2px solid #6366f1;
+  border-radius: 2px;
+  z-index: 10;
+}
+
+.image-resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border: 2px solid #6366f1;
+  border-radius: 2px;
+  z-index: 11;
+}
+.image-resize-handle.handle-nw { cursor: nw-resize; }
+.image-resize-handle.handle-ne { cursor: ne-resize; }
+.image-resize-handle.handle-sw { cursor: sw-resize; }
+.image-resize-handle.handle-se { cursor: se-resize; }
+
+.resize-line {
+  position: absolute;
+  background: #3b82f6;
+  pointer-events: none;
+  z-index: 20;
+}
+.resize-line.resize-line-v { top: 0; bottom: 0; width: 2px; }
+.resize-line.resize-line-h { left: 0; right: 0; height: 2px; }
+
+.reorder-line {
+  position: absolute;
+  background: #f59e0b;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Table context menu */
+.table-ctx-overlay { position: fixed; inset: 0; z-index: 999; }
+
+.table-ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 4px 0;
+  min-width: 200px;
+  list-style: none;
+  margin: 0;
+  font-size: 13px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+.table-ctx-menu li {
+  padding: 6px 14px;
+  cursor: pointer;
+  color: #374151;
+  white-space: nowrap;
+}
+.table-ctx-menu li:hover { background: #f3f4f6; }
+.table-ctx-menu li.danger { color: #dc2626; }
+.table-ctx-menu li.danger:hover { background: #fef2f2; }
+.table-ctx-menu li.separator {
+  height: 1px;
+  background: #e5e7eb;
+  padding: 0;
+  margin: 4px 0;
+  cursor: default;
+}
+.table-ctx-menu li.separator:hover { background: #e5e7eb; }
+.table-ctx-menu li.menu-align-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+}
+.table-ctx-menu li.menu-align-row:hover { background: transparent; }
+.table-ctx-menu .align-label { flex: 1; color: #6b7280; min-width: 52px; }
+.table-ctx-menu .align-btns { display: flex; gap: 2px; }
+.table-ctx-menu .align-btns button {
+  width: 26px;
+  height: 22px;
+  border: 1px solid #e5e7eb;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.table-ctx-menu .align-btns button:hover { background: #f3f4f6; border-color: #d1d5db; }
+.table-ctx-menu .align-btns button.active { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }

@@ -8,7 +8,7 @@ import { RichEditorComponent } from './shared/rich-editor/rich-editor.component'
   standalone: true,
   imports: [ReactiveFormsModule, RichEditorComponent],
   templateUrl: './app.html',
-  styleUrls: ['./app.scss']
+  styleUrls: ['./app.css']
 })
 export class App {
   form = new FormGroup({
