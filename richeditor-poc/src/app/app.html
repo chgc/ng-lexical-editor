@@ -1,0 +1,26 @@
+<div class="demo-container">
+  <h1>📝 Lexical Rich Editor — Angular v21 POC</h1>
+  <p class="subtitle">Built with <a href="https://lexical.dev" target="_blank">Lexical</a> (Meta) · Vanilla JS · Angular Signals</p>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()">
+    <div class="field">
+      <label for="title">Title</label>
+      <input id="title" type="text" formControlName="title" placeholder="Article title...">
+    </div>
+
+    <div class="field">
+      <label>Content</label>
+      <app-rich-editor formControlName="content"></app-rich-editor>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn-submit">Save</button>
+      <button type="button" class="btn-reset" (click)="form.reset()">Reset</button>
+    </div>
+  </form>
+
+  <details class="debug-panel">
+    <summary>🔍 Debug: Editor State (JSON)</summary>
+    <pre>{{ contentValue() }}</pre>
+  </details>
+</div>
