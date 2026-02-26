@@ -55,7 +55,7 @@ import {
 import { LinkNode, AutoLinkNode } from '@lexical/link';
 import { CodeNode, CodeHighlightNode, registerCodeHighlighting } from '@lexical/code';
 import { mergeRegister } from '@lexical/utils';
-import { $setBlocksType } from '@lexical/selection';
+import { $setBlocksType, $patchStyleText, $getSelectionStyleValueForProperty } from '@lexical/selection';
 import {
   HEADING,
   QUOTE,
@@ -71,17 +71,17 @@ import {
 } from '@lexical/markdown';
 
 const MD_TRANSFORMERS = [
-  HEADING,
-  QUOTE,
-  UNORDERED_LIST,
-  ORDERED_LIST,
-  BOLD_ITALIC_STAR,
-  BOLD_STAR,
-  ITALIC_STAR,
-  STRIKETHROUGH,
-  INLINE_CODE,
-  CODE,
+  HEADING, QUOTE, UNORDERED_LIST, ORDERED_LIST,
+  BOLD_ITALIC_STAR, BOLD_STAR, ITALIC_STAR, STRIKETHROUGH, INLINE_CODE, CODE,
 ];
+
+const EDITOR_THEME = {
+  text: {
+    underline: 'lx-underline',
+    strikethrough: 'lx-strikethrough',
+    underlineStrikethrough: 'lx-underline-strikethrough',
+  },
+};
 
 type HeadingTag = 'h1' | 'h2' | 'h3' | 'paragraph';
 
@@ -105,9 +105,12 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
   private cdr = inject(ChangeDetectorRef);
 
-  isBold = signal(false);
-  isItalic = signal(false);
-  isUnderline = signal(false);
+  isBold        = signal(false);
+  isItalic      = signal(false);
+  isUnderline   = signal(false);
+  isStrikethrough = signal(false);
+  fontColor     = signal('#000000');
+  bgColor       = signal('#ffffff');
   listType = signal<'none' | 'bullet' | 'number'>('none');
   blockType = signal<HeadingTag>('paragraph');
   showTableDialog = signal(false);
@@ -131,6 +134,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   ngAfterViewInit(): void {
     this.editor = createEditor({
       namespace: 'RichEditor',
+      theme: EDITOR_THEME,
       nodes: [
         HeadingNode,
         QuoteNode,
@@ -185,8 +189,24 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
   // ── Toolbar actions ────────────────────────────────────────────────────────
 
-  format(type: 'bold' | 'italic' | 'underline'): void {
+  format(type: 'bold' | 'italic' | 'underline' | 'strikethrough'): void {
     this.editor.dispatchCommand(FORMAT_TEXT_COMMAND, type);
+  }
+
+  applyFontColor(color: string): void {
+    this.fontColor.set(color);
+    this.editor.update(() => {
+      const sel = $getSelection();
+      if ($isRangeSelection(sel)) $patchStyleText(sel, { color });
+    });
+  }
+
+  applyBgColor(color: string): void {
+    this.bgColor.set(color);
+    this.editor.update(() => {
+      const sel = $getSelection();
+      if ($isRangeSelection(sel)) $patchStyleText(sel, { 'background-color': color });
+    });
   }
   undo(): void {
     this.editor.dispatchCommand(UNDO_COMMAND, undefined);
@@ -273,6 +293,9 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       this.isBold.set(sel.hasFormat('bold'));
       this.isItalic.set(sel.hasFormat('italic'));
       this.isUnderline.set(sel.hasFormat('underline'));
+      this.isStrikethrough.set(sel.hasFormat('strikethrough'));
+      this.fontColor.set($getSelectionStyleValueForProperty(sel, 'color', '#000000'));
+      this.bgColor.set($getSelectionStyleValueForProperty(sel, 'background-color', '#ffffff'));
 
       const listType = this.getSelectionListType();
       this.listType.set(listType);
@@ -290,6 +313,9 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       this.isBold.set(false);
       this.isItalic.set(false);
       this.isUnderline.set(false);
+      this.isStrikethrough.set(false);
+      this.fontColor.set('#000000');
+      this.bgColor.set('#ffffff');
       this.listType.set('none');
       this.blockType.set('paragraph');
     }

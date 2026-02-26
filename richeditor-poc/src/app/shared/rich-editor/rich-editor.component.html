@@ -48,6 +48,29 @@
     >
       <u>U</u>
     </button>
+    <button
+      type="button"
+      class="toolbar-btn"
+      [class.active]="isStrikethrough()"
+      (click)="format('strikethrough')"
+      title="Strikethrough"
+    >
+      <s>S</s>
+    </button>
+
+    <span class="divider"></span>
+
+    <!-- Font color -->
+    <label class="toolbar-btn color-btn" title="Font Color" (mousedown)="$event.stopPropagation()">
+      <span class="color-icon" [style.border-bottom-color]="fontColor()">A</span>
+      <input type="color" [value]="fontColor()" (input)="applyFontColor($any($event.target).value)" />
+    </label>
+
+    <!-- Background color -->
+    <label class="toolbar-btn color-btn" title="Highlight Color" (mousedown)="$event.stopPropagation()">
+      <span class="color-icon bg-icon" [style.background-color]="bgColor()">A</span>
+      <input type="color" [value]="bgColor()" (input)="applyBgColor($any($event.target).value)" />
+    </label>
 
     <span class="divider"></span>
 
