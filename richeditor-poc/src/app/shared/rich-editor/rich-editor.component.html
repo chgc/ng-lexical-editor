@@ -87,42 +87,4 @@
   </div>
 </div>
 
-<!-- Table context menu (outside wrapper so position: fixed works correctly) -->
-@if (tableMenu(); as menu) {
-  <div class="table-ctx-overlay" (click)="closeTableMenu()" (contextmenu)="closeTableMenu()"></div>
-  <ul class="table-ctx-menu" [style.left.px]="menu.x" [style.top.px]="menu.y">
-    <li (click)="tableAction('insertRowAbove')">↑ Insert Row Above</li>
-    <li (click)="tableAction('insertRowBelow')">↓ Insert Row Below</li>
-    <li (click)="tableAction('insertColLeft')">← Insert Column Left</li>
-    <li (click)="tableAction('insertColRight')">→ Insert Column Right</li>
-    <li class="separator"></li>
-    <li (click)="tableAction('deleteRow')" class="danger">
-      {{ menu.canMerge ? '✕ Delete Selected Rows' : '✕ Delete Row' }}
-    </li>
-    <li (click)="tableAction('deleteCol')" class="danger">
-      {{ menu.canMerge ? '✕ Delete Selected Columns' : '✕ Delete Column' }}
-    </li>
-    @if (menu.canMerge || menu.canSplit) {
-      <li class="separator"></li>
-      @if (menu.canMerge) {
-        <li (click)="tableAction('mergeCells')">⊡ Merge Cells</li>
-      }
-      @if (menu.canSplit) {
-        <li (click)="tableAction('splitCell')">⊞ Split Cell</li>
-      }
-    }
-    <li class="separator"></li>
-    <li (click)="tableAction('toggleRowHeader')">
-      {{ menu.isRowHeader ? '☑ Remove Row Header' : '☐ Set as Row Header' }}
-    </li>
-    <li class="separator"></li>
-    <li class="menu-align-row">
-      <span class="align-label">Vertical</span>
-      <div class="align-btns">
-        <button [class.active]="menu.vAlign === '' || menu.vAlign === 'top'" (click)="tableAction('vAlignTop')" title="Top">↑</button>
-        <button [class.active]="menu.vAlign === 'middle'" (click)="tableAction('vAlignMiddle')" title="Middle">↕</button>
-        <button [class.active]="menu.vAlign === 'bottom'" (click)="tableAction('vAlignBottom')" title="Bottom">↓</button>
-      </div>
-    </li>
-  </ul>
-}
+

@@ -1,72 +1,87 @@
 import { Injectable, signal } from '@angular/core';
 import {
-  createEditor,
-  LexicalEditor,
-  LexicalNode,
-  $getRoot,
-  $getSelection,
-  $isRangeSelection,
-  $createParagraphNode,
-  $getNearestNodeFromDOMNode,
-  FORMAT_TEXT_COMMAND,
-  FORMAT_ELEMENT_COMMAND,
-  UNDO_COMMAND,
-  REDO_COMMAND,
-  SELECTION_CHANGE_COMMAND,
-  COMMAND_PRIORITY_LOW,
-} from 'lexical';
+  $createCodeNode,
+  $isCodeNode,
+  CodeHighlightNode,
+  CodeNode,
+  registerCodeHighlighting,
+} from '@lexical/code';
+import { createEmptyHistoryState, registerHistory } from '@lexical/history';
+import { AutoLinkNode, LinkNode } from '@lexical/link';
 import {
-  registerRichText,
-  HeadingNode,
-  QuoteNode,
+  $isListNode,
+  INSERT_ORDERED_LIST_COMMAND,
+  INSERT_UNORDERED_LIST_COMMAND,
+  ListItemNode,
+  ListNode,
+  registerList,
+  REMOVE_LIST_COMMAND,
+} from '@lexical/list';
+import {
+  BOLD_ITALIC_STAR,
+  BOLD_STAR,
+  CODE,
+  HEADING,
+  INLINE_CODE,
+  ITALIC_STAR,
+  ORDERED_LIST,
+  QUOTE,
+  registerMarkdownShortcuts,
+  STRIKETHROUGH,
+  UNORDERED_LIST,
+} from '@lexical/markdown';
+import {
   $createHeadingNode,
   $createQuoteNode,
   $isHeadingNode,
   $isQuoteNode,
+  HeadingNode,
+  QuoteNode,
+  registerRichText,
 } from '@lexical/rich-text';
-import { createEmptyHistoryState, registerHistory } from '@lexical/history';
 import {
-  ListNode,
-  ListItemNode,
-  $isListNode,
-  registerList,
-  INSERT_ORDERED_LIST_COMMAND,
-  INSERT_UNORDERED_LIST_COMMAND,
-  REMOVE_LIST_COMMAND,
-} from '@lexical/list';
-import { LinkNode, AutoLinkNode } from '@lexical/link';
+  $getSelectionStyleValueForProperty,
+  $patchStyleText,
+  $setBlocksType,
+} from '@lexical/selection';
 import {
-  CodeNode,
-  CodeHighlightNode,
-  $createCodeNode,
-  $isCodeNode,
-  registerCodeHighlighting,
-} from '@lexical/code';
-import {
-  TableNode,
-  TableCellNode,
-  TableRowNode,
-  TableCellHeaderStates,
   $createTableNodeWithDimensions,
+  $deleteTableColumnAtSelection,
+  $deleteTableRowAtSelection,
+  $insertTableColumnAtSelection,
+  $insertTableRowAtSelection,
   $isTableCellNode,
   $isTableRowNode,
   $isTableSelection,
-  $insertTableRowAtSelection,
-  $insertTableColumnAtSelection,
-  $deleteTableRowAtSelection,
-  $deleteTableColumnAtSelection,
   $mergeCells,
   $unmergeCell,
   registerTablePlugin,
   registerTableSelectionObserver,
+  TableCellHeaderStates,
+  TableCellNode,
+  TableNode,
+  TableRowNode,
 } from '@lexical/table';
 import { mergeRegister } from '@lexical/utils';
 import {
-  $setBlocksType,
-  $patchStyleText,
-  $getSelectionStyleValueForProperty,
-} from '@lexical/selection';
-import {
+  $createParagraphNode,
+  $getNearestNodeFromDOMNode,
+  $getRoot,
+  $getSelection,
+  $isRangeSelection,
+  COMMAND_PRIORITY_LOW,
+  createEditor,
+  FORMAT_ELEMENT_COMMAND,
+  FORMAT_TEXT_COMMAND,
+  LexicalEditor,
+  LexicalNode,
+  REDO_COMMAND,
+  SELECTION_CHANGE_COMMAND,
+  UNDO_COMMAND,
+} from 'lexical';
+import { $createImageNode, ImageNode } from './nodes/image.node';
+
+const MD_TRANSFORMERS = [
   HEADING,
   QUOTE,
   UNORDERED_LIST,
@@ -77,13 +92,6 @@ import {
   STRIKETHROUGH,
   INLINE_CODE,
   CODE,
-  registerMarkdownShortcuts,
-} from '@lexical/markdown';
-import { ImageNode, $createImageNode } from './nodes/image.node';
-
-const MD_TRANSFORMERS = [
-  HEADING, QUOTE, UNORDERED_LIST, ORDERED_LIST,
-  BOLD_ITALIC_STAR, BOLD_STAR, ITALIC_STAR, STRIKETHROUGH, INLINE_CODE, CODE,
 ];
 
 const EDITOR_THEME = {
@@ -95,43 +103,43 @@ const EDITOR_THEME = {
   },
   code: 'lx-code-block',
   codeHighlight: {
-    atrule:       'lx-tk-keyword',
-    attr:         'lx-tk-attr',
-    boolean:      'lx-tk-property',
-    builtin:      'lx-tk-selector',
-    cdata:        'lx-tk-comment',
-    char:         'lx-tk-selector',
-    class:        'lx-tk-function',
+    atrule: 'lx-tk-keyword',
+    attr: 'lx-tk-attr',
+    boolean: 'lx-tk-property',
+    builtin: 'lx-tk-selector',
+    cdata: 'lx-tk-comment',
+    char: 'lx-tk-selector',
+    class: 'lx-tk-function',
     'class-name': 'lx-tk-function',
-    comment:      'lx-tk-comment',
-    constant:     'lx-tk-property',
-    deleted:      'lx-tk-property',
-    doctype:      'lx-tk-comment',
-    entity:       'lx-tk-operator',
-    function:     'lx-tk-function',
-    important:    'lx-tk-variable',
-    inserted:     'lx-tk-selector',
-    keyword:      'lx-tk-keyword',
-    namespace:    'lx-tk-variable',
-    number:       'lx-tk-number',
-    operator:     'lx-tk-operator',
-    prolog:       'lx-tk-comment',
-    property:     'lx-tk-property',
-    punctuation:  'lx-tk-punctuation',
-    regex:        'lx-tk-regex',
-    selector:     'lx-tk-selector',
-    string:       'lx-tk-string',
-    symbol:       'lx-tk-property',
-    tag:          'lx-tk-tag',
-    url:          'lx-tk-operator',
-    variable:     'lx-tk-variable',
+    comment: 'lx-tk-comment',
+    constant: 'lx-tk-property',
+    deleted: 'lx-tk-property',
+    doctype: 'lx-tk-comment',
+    entity: 'lx-tk-operator',
+    function: 'lx-tk-function',
+    important: 'lx-tk-variable',
+    inserted: 'lx-tk-selector',
+    keyword: 'lx-tk-keyword',
+    namespace: 'lx-tk-variable',
+    number: 'lx-tk-number',
+    operator: 'lx-tk-operator',
+    prolog: 'lx-tk-comment',
+    property: 'lx-tk-property',
+    punctuation: 'lx-tk-punctuation',
+    regex: 'lx-tk-regex',
+    selector: 'lx-tk-selector',
+    string: 'lx-tk-string',
+    symbol: 'lx-tk-property',
+    tag: 'lx-tk-tag',
+    url: 'lx-tk-operator',
+    variable: 'lx-tk-variable',
   },
-  table:             'lx-table',
-  tableRow:          'lx-table-row',
-  tableCell:         'lx-table-cell',
-  tableCellHeader:   'lx-table-cell-header',
+  table: 'lx-table',
+  tableRow: 'lx-table-row',
+  tableCell: 'lx-table-cell',
+  tableCellHeader: 'lx-table-cell-header',
   tableCellSelected: 'lx-table-cell-selected',
-  tableSelection:    'lx-table-selection',
+  tableSelection: 'lx-table-selection',
 };
 
 export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'paragraph' | 'quote' | 'code';
@@ -140,34 +148,47 @@ export type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'paragraph' |
 @Injectable()
 export class EditorService {
   // ── Toolbar state (signals) ────────────────────────────────────────────────
-  readonly isBold          = signal(false);
-  readonly isItalic        = signal(false);
-  readonly isUnderline     = signal(false);
+  readonly isBold = signal(false);
+  readonly isItalic = signal(false);
+  readonly isUnderline = signal(false);
   readonly isStrikethrough = signal(false);
-  readonly isInlineCode    = signal(false);
-  readonly codeLanguage    = signal('javascript');
-  readonly fontColor       = signal('#000000');
-  readonly bgColor         = signal('#ffffff');
-  readonly listType        = signal<'none' | 'bullet' | 'number'>('none');
-  readonly blockType       = signal<HeadingTag>('paragraph');
-  readonly textAlign       = signal<'left' | 'center' | 'right' | ''>('');
+  readonly isInlineCode = signal(false);
+  readonly codeLanguage = signal('javascript');
+  readonly fontColor = signal('#000000');
+  readonly bgColor = signal('#ffffff');
+  readonly listType = signal<'none' | 'bullet' | 'number'>('none');
+  readonly blockType = signal<HeadingTag>('paragraph');
+  readonly textAlign = signal<'left' | 'center' | 'right' | ''>('');
 
   // Table context menu state (shared with host component template)
   readonly tableMenu = signal<{
-    x: number; y: number;
-    canMerge: boolean; canSplit: boolean;
-    isRowHeader: boolean; vAlign: string;
+    x: number;
+    y: number;
+    canMerge: boolean;
+    canSplit: boolean;
+    isRowHeader: boolean;
+    vAlign: string;
   } | null>(null);
 
+  /** Stored by the host component when the ⋮ button is clicked; used by tableAction. */
+  private _contextMenuCell: HTMLElement | null = null;
+  setContextMenuCell(el: HTMLElement | null): void {
+    this._contextMenuCell = el;
+  }
+
+  closeTableMenu(): void {
+    this.tableMenu.set(null);
+  }
+
   readonly headingOptions: ReadonlyArray<{ label: string; value: HeadingTag }> = [
-    { label: 'Normal',     value: 'paragraph' },
-    { label: 'Heading 1',  value: 'h1' },
-    { label: 'Heading 2',  value: 'h2' },
-    { label: 'Heading 3',  value: 'h3' },
-    { label: 'Heading 4',  value: 'h4' },
-    { label: 'Heading 5',  value: 'h5' },
-    { label: 'Heading 6',  value: 'h6' },
-    { label: 'Quote',      value: 'quote' },
+    { label: 'Normal', value: 'paragraph' },
+    { label: 'Heading 1', value: 'h1' },
+    { label: 'Heading 2', value: 'h2' },
+    { label: 'Heading 3', value: 'h3' },
+    { label: 'Heading 4', value: 'h4' },
+    { label: 'Heading 5', value: 'h5' },
+    { label: 'Heading 6', value: 'h6' },
+    { label: 'Quote', value: 'quote' },
     { label: 'Code Block', value: 'code' },
   ];
 
@@ -175,7 +196,9 @@ export class EditorService {
   private _pendingValue?: string;
   private _onChangeFn: (v: string) => void = () => {};
 
-  get editor(): LexicalEditor { return this._editor; }
+  get editor(): LexicalEditor {
+    return this._editor;
+  }
 
   /**
    * Attach the editor to a DOM element and register all plugins.
@@ -189,12 +212,18 @@ export class EditorService {
       namespace: 'RichEditor',
       theme: EDITOR_THEME,
       nodes: [
-        HeadingNode, QuoteNode,
-        ListNode, ListItemNode,
-        LinkNode, AutoLinkNode,
-        CodeNode, CodeHighlightNode,
+        HeadingNode,
+        QuoteNode,
+        ListNode,
+        ListItemNode,
+        LinkNode,
+        AutoLinkNode,
+        CodeNode,
+        CodeHighlightNode,
         ImageNode,
-        TableNode, TableCellNode, TableRowNode,
+        TableNode,
+        TableCellNode,
+        TableRowNode,
       ],
       onError: (err) => console.error('[RichEditor]', err),
     });
@@ -219,7 +248,10 @@ export class EditorService {
       }),
       this._editor.registerCommand(
         SELECTION_CHANGE_COMMAND,
-        () => { this._editor.read(() => this._syncToolbar()); return false; },
+        () => {
+          this._editor.read(() => this._syncToolbar());
+          return false;
+        },
         COMMAND_PRIORITY_LOW,
       ),
     );
@@ -234,15 +266,22 @@ export class EditorService {
 
   // ── ControlValueAccessor helpers ───────────────────────────────────────────
 
-  setOnChangeFn(fn: (v: string) => void): void { this._onChangeFn = fn; }
+  setOnChangeFn(fn: (v: string) => void): void {
+    this._onChangeFn = fn;
+  }
 
   writeEditorState(json: string | null): void {
     if (!json) return;
-    if (!this._editor) { this._pendingValue = json; return; }
+    if (!this._editor) {
+      this._pendingValue = json;
+      return;
+    }
     this._applyState(json);
   }
 
-  setEditable(editable: boolean): void { this._editor?.setEditable(editable); }
+  setEditable(editable: boolean): void {
+    this._editor?.setEditable(editable);
+  }
 
   // ── Toolbar actions ────────────────────────────────────────────────────────
 
@@ -270,8 +309,12 @@ export class EditorService {
     });
   }
 
-  undo(): void { this._editor.dispatchCommand(UNDO_COMMAND, undefined); }
-  redo(): void { this._editor.dispatchCommand(REDO_COMMAND, undefined); }
+  undo(): void {
+    this._editor.dispatchCommand(UNDO_COMMAND, undefined);
+  }
+  redo(): void {
+    this._editor.dispatchCommand(REDO_COMMAND, undefined);
+  }
 
   insertOrderedList(): void {
     const cmd = this.listType() === 'number' ? REMOVE_LIST_COMMAND : INSERT_ORDERED_LIST_COMMAND;
@@ -295,7 +338,9 @@ export class EditorService {
         } else if (tag === 'code') {
           $setBlocksType(sel, () => $createCodeNode());
         } else {
-          $setBlocksType(sel, () => $createHeadingNode(tag as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'));
+          $setBlocksType(sel, () =>
+            $createHeadingNode(tag as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'),
+          );
         }
       });
     });
@@ -320,7 +365,7 @@ export class EditorService {
       } else {
         $getRoot().append(imageNode);
       }
-      if (!imageNode.getNextSibling())     imageNode.insertAfter($createParagraphNode());
+      if (!imageNode.getNextSibling()) imageNode.insertAfter($createParagraphNode());
       if (!imageNode.getPreviousSibling()) imageNode.insertBefore($createParagraphNode());
     });
   }
@@ -349,9 +394,12 @@ export class EditorService {
    * Read table-cell metadata synchronously from the Lexical state.
    * Must be called outside an existing read/update (it opens its own read).
    */
-  getTableCellInfo(
-    cellDOM: HTMLElement,
-  ): { canMerge: boolean; canSplit: boolean; isRowHeader: boolean; vAlign: string } {
+  getTableCellInfo(cellDOM: HTMLElement): {
+    canMerge: boolean;
+    canSplit: boolean;
+    isRowHeader: boolean;
+    vAlign: string;
+  } {
     let canMerge = false;
     let canSplit = false;
     let isRowHeader = false;
@@ -360,20 +408,26 @@ export class EditorService {
       canMerge = $isTableSelection($getSelection());
       const cellNode = $getNearestNodeFromDOMNode(cellDOM);
       if ($isTableCellNode(cellNode)) {
-        canSplit    = cellNode.getColSpan() > 1 || cellNode.getRowSpan() > 1;
+        canSplit = cellNode.getColSpan() > 1 || cellNode.getRowSpan() > 1;
         isRowHeader = cellNode.hasHeaderState(TableCellHeaderStates.ROW);
-        vAlign      = cellNode.getVerticalAlign() ?? '';
+        vAlign = cellNode.getVerticalAlign() ?? '';
       }
     });
     return { canMerge, canSplit, isRowHeader, vAlign };
   }
 
-  tableAction(action: string, cellDOM: HTMLElement | null): void {
+  tableAction(action: string): void {
+    this.tableMenu.set(null);
+    const cellDOM = this._contextMenuCell;
     this._editor.focus(() => {
       this._editor.update(() => {
         const needsCellAnchor = ![
-          'mergeCells', 'deleteRow', 'deleteCol',
-          'vAlignTop', 'vAlignMiddle', 'vAlignBottom',
+          'mergeCells',
+          'deleteRow',
+          'deleteCol',
+          'vAlignTop',
+          'vAlignMiddle',
+          'vAlignBottom',
         ].includes(action);
         if (needsCellAnchor && cellDOM) {
           const cellNode = $getNearestNodeFromDOMNode(cellDOM);
@@ -381,21 +435,36 @@ export class EditorService {
         }
         const sel = $getSelection();
         switch (action) {
-          case 'insertRowAbove':  $insertTableRowAtSelection(false);    break;
-          case 'insertRowBelow':  $insertTableRowAtSelection(true);     break;
-          case 'insertColLeft':   $insertTableColumnAtSelection(false); break;
-          case 'insertColRight':  $insertTableColumnAtSelection(true);  break;
-          case 'deleteRow':       $deleteTableRowAtSelection();         break;
-          case 'deleteCol':       $deleteTableColumnAtSelection();      break;
+          case 'insertRowAbove':
+            $insertTableRowAtSelection(false);
+            break;
+          case 'insertRowBelow':
+            $insertTableRowAtSelection(true);
+            break;
+          case 'insertColLeft':
+            $insertTableColumnAtSelection(false);
+            break;
+          case 'insertColRight':
+            $insertTableColumnAtSelection(true);
+            break;
+          case 'deleteRow':
+            $deleteTableRowAtSelection();
+            break;
+          case 'deleteCol':
+            $deleteTableColumnAtSelection();
+            break;
           case 'vAlignTop':
           case 'vAlignMiddle':
           case 'vAlignBottom': {
             if (cellDOM) {
               const cn = $getNearestNodeFromDOMNode(cellDOM);
               if ($isTableCellNode(cn)) {
-                const v = action === 'vAlignMiddle' ? 'middle'
-                        : action === 'vAlignBottom' ? 'bottom'
-                        : undefined;
+                const v =
+                  action === 'vAlignMiddle'
+                    ? 'middle'
+                    : action === 'vAlignBottom'
+                      ? 'bottom'
+                      : undefined;
                 cn.setVerticalAlign(v);
               }
             }
@@ -407,7 +476,7 @@ export class EditorService {
               if ($isTableCellNode(cellNode)) {
                 const row = cellNode.getParent();
                 if ($isTableRowNode(row)) {
-                  row.getChildren().forEach(child => {
+                  row.getChildren().forEach((child) => {
                     if ($isTableCellNode(child)) child.toggleHeaderStyle(TableCellHeaderStates.ROW);
                   });
                 }
@@ -421,7 +490,9 @@ export class EditorService {
               if (cells.length > 1) $mergeCells(cells);
             }
             break;
-          case 'splitCell': $unmergeCell(); break;
+          case 'splitCell':
+            $unmergeCell();
+            break;
         }
       });
     });
@@ -433,7 +504,9 @@ export class EditorService {
     try {
       this._editor.setEditorState(this._editor.parseEditorState(json));
     } catch {
-      this._editor.update(() => { $getRoot().clear().append($createParagraphNode()); });
+      this._editor.update(() => {
+        $getRoot().clear().append($createParagraphNode());
+      });
     }
   }
 
@@ -451,9 +524,8 @@ export class EditorService {
       this.listType.set(this._getListType());
 
       const anchorNode = sel.anchor.getNode();
-      const element = anchorNode.getKey() === 'root'
-        ? anchorNode
-        : anchorNode.getTopLevelElementOrThrow();
+      const element =
+        anchorNode.getKey() === 'root' ? anchorNode : anchorNode.getTopLevelElementOrThrow();
 
       if ($isHeadingNode(element)) {
         this.blockType.set(element.getTag() as HeadingTag);

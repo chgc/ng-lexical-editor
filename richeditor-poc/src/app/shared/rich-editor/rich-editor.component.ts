@@ -40,7 +40,6 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   private readonly cdr = inject(ChangeDetectorRef);
 
   // ── UI overlay signals (editor-area only) ─────────────────────────────────
-  readonly tableMenu = this.es.tableMenu;
   readonly tableActionBtn = signal<{ x: number; y: number } | null>(null);
   readonly resizeIndicator = signal<{ vertical: boolean; position: number } | null>(null);
   readonly reorderIndicator = signal<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -83,7 +82,6 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   private _mouseOverDragHandle = false;
   private _mouseOverActionBtn = false;
   private _blockDragState: { sourceIndex: number; dropIndex: number | null } | null = null;
-  private _contextMenuCell: HTMLElement | null = null;
   private _actionBtnCell: HTMLElement | null = null;
 
   private readonly _boundDocMouseMove = (e: MouseEvent) => this._onDocMouseMove(e);
@@ -112,30 +110,14 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
   // ── Table context menu ─────────────────────────────────────────────────────
 
-  closeTableMenu(): void {
-    this.es.tableMenu.set(null);
-  }
-
-  tableAction(action: string): void {
-    this.es.tableMenu.set(null);
-    this.es.tableAction(action, this._contextMenuCell);
-  }
-
   openTableMenu(event: MouseEvent): void {
     event.stopPropagation();
     const cellDOM = this._actionBtnCell;
     if (!cellDOM) return;
-    this._contextMenuCell = cellDOM;
+    this.es.setContextMenuCell(cellDOM);
     const { canMerge, canSplit, isRowHeader, vAlign } = this.es.getTableCellInfo(cellDOM);
     const btnRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.es.tableMenu.set({
-      x: btnRect.left,
-      y: btnRect.bottom + 4,
-      canMerge,
-      canSplit,
-      isRowHeader,
-      vAlign,
-    });
+    this.es.tableMenu.set({ x: btnRect.left, y: btnRect.bottom + 4, canMerge, canSplit, isRowHeader, vAlign });
     this.cdr.markForCheck();
   }
 

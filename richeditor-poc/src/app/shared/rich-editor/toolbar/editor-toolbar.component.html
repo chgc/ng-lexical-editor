@@ -105,3 +105,39 @@
   <!-- Insert Table -->
   <button type="button" class="toolbar-btn" title="Insert 3×3 Table" (click)="es.insertTable(3, 3)">⊞</button>
 </div>
+
+<!-- Table context menu rendered here (position:fixed — works from any DOM position) -->
+@if (es.tableMenu(); as menu) {
+  <div class="table-ctx-overlay" (click)="es.closeTableMenu()" (contextmenu)="es.closeTableMenu()"></div>
+  <ul class="table-ctx-menu" [style.left.px]="menu.x" [style.top.px]="menu.y">
+    <li (click)="es.tableAction('insertRowAbove')">↑ Insert Row Above</li>
+    <li (click)="es.tableAction('insertRowBelow')">↓ Insert Row Below</li>
+    <li (click)="es.tableAction('insertColLeft')">← Insert Column Left</li>
+    <li (click)="es.tableAction('insertColRight')">→ Insert Column Right</li>
+    <li class="separator"></li>
+    <li (click)="es.tableAction('deleteRow')" class="danger">
+      {{ menu.canMerge ? '✕ Delete Selected Rows' : '✕ Delete Row' }}
+    </li>
+    <li (click)="es.tableAction('deleteCol')" class="danger">
+      {{ menu.canMerge ? '✕ Delete Selected Columns' : '✕ Delete Column' }}
+    </li>
+    @if (menu.canMerge || menu.canSplit) {
+      <li class="separator"></li>
+      @if (menu.canMerge) { <li (click)="es.tableAction('mergeCells')">⊡ Merge Cells</li> }
+      @if (menu.canSplit)  { <li (click)="es.tableAction('splitCell')">⊞ Split Cell</li> }
+    }
+    <li class="separator"></li>
+    <li (click)="es.tableAction('toggleRowHeader')">
+      {{ menu.isRowHeader ? '☑ Remove Row Header' : '☐ Set as Row Header' }}
+    </li>
+    <li class="separator"></li>
+    <li class="menu-align-row">
+      <span class="align-label">Vertical</span>
+      <div class="align-btns">
+        <button [class.active]="menu.vAlign === '' || menu.vAlign === 'top'" (click)="es.tableAction('vAlignTop')"    title="Top">↑</button>
+        <button [class.active]="menu.vAlign === 'middle'"                    (click)="es.tableAction('vAlignMiddle')" title="Middle">↕</button>
+        <button [class.active]="menu.vAlign === 'bottom'"                    (click)="es.tableAction('vAlignBottom')" title="Bottom">↓</button>
+      </div>
+    </li>
+  </ul>
+}
