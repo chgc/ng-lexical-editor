@@ -75,6 +75,7 @@ import {
   FORMAT_TEXT_COMMAND,
   LexicalEditor,
   LexicalNode,
+  PASTE_COMMAND,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
   UNDO_COMMAND,
@@ -260,6 +261,25 @@ export class EditorService {
         },
         COMMAND_PRIORITY_LOW,
       ),
+      this._editor.registerCommand(
+        PASTE_COMMAND,
+        (event: ClipboardEvent) => {
+          const items = event.clipboardData?.items;
+          if (!items) return false;
+          for (let i = 0; i < items.length; i++) {
+            if (items[i].type.startsWith('image/')) {
+              const blob = items[i].getAsFile();
+              if (blob) {
+                event.preventDefault();
+                this.insertImageFromBlob(blob);
+                return true;
+              }
+            }
+          }
+          return false;
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
     );
 
     if (this._pendingValue) {
@@ -374,6 +394,55 @@ export class EditorService {
       if (!imageNode.getNextSibling()) imageNode.insertAfter($createParagraphNode());
       if (!imageNode.getPreviousSibling()) imageNode.insertBefore($createParagraphNode());
     });
+  }
+
+  /** Compress a Blob/File and insert it as an image node (same pipeline as toolbar upload). */
+  insertImageFromBlob(blob: Blob, altText = 'pasted-image'): void {
+    const TARGET_BYTES = 15 * 1024;
+    const TARGET_SIZE = TARGET_BYTES * (4 / 3);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const originalSrc = e.target?.result as string;
+      if (!originalSrc) return;
+
+      if (blob.size <= TARGET_BYTES) {
+        this.insertImage(originalSrc, altText);
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+
+        let lo = 0.1, hi = 0.92, result = originalSrc, bestQ = 0.9;
+        for (let i = 0; i < 8; i++) {
+          const mid = (lo + hi) / 2;
+          const candidate = canvas.toDataURL('image/jpeg', mid);
+          if (candidate.length > TARGET_SIZE) { hi = mid; }
+          else { lo = mid; result = candidate; bestQ = mid; }
+        }
+
+        if (result.length > TARGET_SIZE) {
+          let w = img.naturalWidth, h = img.naturalHeight;
+          while (result.length > TARGET_SIZE && w > 100) {
+            w = Math.floor(w * 0.8);
+            h = Math.floor(h * 0.8);
+            canvas.width = w; canvas.height = h;
+            ctx.drawImage(img, 0, 0, w, h);
+            result = canvas.toDataURL('image/jpeg', bestQ);
+          }
+        }
+
+        this.insertImage(result, altText);
+      };
+      img.src = originalSrc;
+    };
+    reader.readAsDataURL(blob);
   }
 
   insertTable(rows = 3, cols = 3): void {
