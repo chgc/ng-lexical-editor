@@ -19,6 +19,23 @@
     </div>
   </form>
 
+  <!-- ── Textarea → Rich Editor 轉換示範 ─────────────────────────────────── -->
+  <details class="debug-panel" open>
+    <summary>🔄 Demo：從 Textarea 載入純文字</summary>
+    <div class="plain-text-demo">
+      <p class="hint">在下方輸入任意純文字（多行亦可），按「載入到 Rich Editor」即可轉換。</p>
+      <textarea
+        rows="5"
+        placeholder="第一行文字&#10;第二行文字&#10;&#10;（空行會保留）"
+        [ngModel]="plainText()"
+        (ngModelChange)="plainText.set($event)"
+      ></textarea>
+      <button type="button" class="btn-load" (click)="loadPlainText()">
+        載入到 Rich Editor ↑
+      </button>
+    </div>
+  </details>
+
   <details class="debug-panel">
     <summary>🔍 Debug: Editor State (JSON)</summary>
     <pre>{{ contentValue() }}</pre>

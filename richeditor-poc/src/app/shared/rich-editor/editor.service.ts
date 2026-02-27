@@ -63,6 +63,7 @@ import {
   TableRowNode,
 } from '@lexical/table';
 import { mergeRegister } from '@lexical/utils';
+import { isLexicalJson, plainTextToLexicalJson } from './utils/lexical.helpers';
 import {
   $createParagraphNode,
   $getNearestNodeFromDOMNode,
@@ -298,11 +299,13 @@ export class EditorService {
 
   writeEditorState(json: string | null): void {
     if (!json) return;
+    // Auto-convert plain text (e.g. from a textarea) to Lexical JSON if needed
+    const lexicalJson = isLexicalJson(json) ? json : plainTextToLexicalJson(json);
     if (!this._editor) {
-      this._pendingValue = json;
+      this._pendingValue = lexicalJson;
       return;
     }
-    this._applyState(json);
+    this._applyState(lexicalJson);
   }
 
   setEditable(editable: boolean): void {
