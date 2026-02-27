@@ -45,6 +45,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   readonly reorderIndicator = signal<{ x: number; y: number; w: number; h: number } | null>(null);
   readonly imageSelection = signal<{ x: number; y: number; w: number; h: number } | null>(null);
   readonly blockDragHandle = signal<{ y: number; h: number } | null>(null);
+  readonly codeBlockOverlay = signal<{ x: number; y: number } | null>(null);
 
   // ── Private drag / resize state ────────────────────────────────────────────
   private _colResizeState: {
@@ -95,8 +96,9 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
   ngAfterViewInit(): void {
     this._editorCleanup = this.es.init(this.editorEl.nativeElement, () => {
-      // onReconcile: re-sync image selection box after DOM update
+      // onReconcile: re-sync image selection box and code block overlay after DOM update
       if (this._selectedImgContainer) this._updateImageSelection(this._selectedImgContainer);
+      this._updateCodeBlockOverlay();
     });
     this.editorEl.nativeElement.addEventListener('scroll', this._boundEditorScroll);
   }
@@ -540,6 +542,28 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     this.cdr.markForCheck();
   }
 
+  private _updateCodeBlockOverlay(): void {
+    const key = this.es.codeNodeKey();
+    if (!key) {
+      this.codeBlockOverlay.set(null);
+      this.cdr.markForCheck();
+      return;
+    }
+    const codeEl = this.es.editor.getElementByKey(key);
+    if (!codeEl) {
+      this.codeBlockOverlay.set(null);
+      this.cdr.markForCheck();
+      return;
+    }
+    const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
+    const codeRect = codeEl.getBoundingClientRect();
+    this.codeBlockOverlay.set({
+      x: codeRect.right - areaRect.left,
+      y: codeRect.bottom - areaRect.top,
+    });
+    this.cdr.markForCheck();
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   private _findTableCell(target: HTMLElement): HTMLElement | null {
@@ -617,6 +641,7 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
 
   private _onEditorScroll(): void {
     if (this._selectedImgContainer) this._updateImageSelection(this._selectedImgContainer);
+    this._updateCodeBlockOverlay();
   }
 
   private _onImgKeyDown(e: KeyboardEvent): void {

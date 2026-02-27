@@ -84,6 +84,36 @@
         [style.height.px]="roi.h"
       ></div>
     }
+
+    <!-- Code language picker (bottom-right of focused code block) -->
+    @if (codeBlockOverlay(); as cbo) {
+      <select
+        class="code-lang-overlay"
+        [style.left.px]="cbo.x"
+        [style.top.px]="cbo.y"
+        [value]="es.codeLanguage()"
+        (mousedown)="$event.stopPropagation()"
+        (change)="es.setCodeLanguage($any($event.target).value)"
+        title="Syntax language"
+      >
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="html">HTML</option>
+        <option value="css">CSS</option>
+        <option value="python">Python</option>
+        <option value="java">Java</option>
+        <option value="csharp">C#</option>
+        <option value="cpp">C++</option>
+        <option value="go">Go</option>
+        <option value="rust">Rust</option>
+        <option value="sql">SQL</option>
+        <option value="bash">Bash</option>
+        <option value="json">JSON</option>
+        <option value="markdown">Markdown</option>
+        <option value="yaml">YAML</option>
+        <option value="plaintext">Plain text</option>
+      </select>
+    }
   </div>
 </div>
 

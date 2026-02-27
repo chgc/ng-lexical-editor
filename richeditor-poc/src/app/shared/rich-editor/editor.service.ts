@@ -79,6 +79,11 @@ import {
   SELECTION_CHANGE_COMMAND,
   UNDO_COMMAND,
 } from 'lexical';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-csharp';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-yaml';
 import { $createImageNode, ImageNode } from './nodes/image.node';
 
 const MD_TRANSFORMERS = [
@@ -154,6 +159,7 @@ export class EditorService {
   readonly isStrikethrough = signal(false);
   readonly isInlineCode = signal(false);
   readonly codeLanguage = signal('javascript');
+  readonly codeNodeKey = signal<string | null>(null);
   readonly fontColor = signal('#000000');
   readonly bgColor = signal('#ffffff');
   readonly listType = signal<'none' | 'bullet' | 'number'>('none');
@@ -534,8 +540,10 @@ export class EditorService {
       } else if ($isCodeNode(element)) {
         this.blockType.set('code');
         this.codeLanguage.set((element as any).getLanguage() || 'javascript');
+        this.codeNodeKey.set(element.getKey());
       } else {
         this.blockType.set('paragraph');
+        this.codeNodeKey.set(null);
       }
 
       let block: LexicalNode = anchorNode;
@@ -555,6 +563,7 @@ export class EditorService {
       this.bgColor.set('#ffffff');
       this.listType.set('none');
       this.blockType.set('paragraph');
+      this.codeNodeKey.set(null);
       this.textAlign.set('');
     }
   }
