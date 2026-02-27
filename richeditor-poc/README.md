@@ -1,67 +1,71 @@
 # Rich Editor POC (Angular + Lexical)
 
-此專案為 Angular v21 + Lexical 的 Rich Text Editor PoC。
+Angular v21 + Lexical 的 Rich Text Editor PoC。
 
-## 目前已具備功能
+## 技術重點
 
-### 1) 基本文字排版
+- Angular Standalone Components + Signals
+- `app-rich-editor` 實作 `ControlValueAccessor`，可直接搭配 Reactive Forms
+- Lexical plugins：rich text、list、history、markdown shortcuts、code highlighting、table
+- Prism.js 語法高亮（已載入 bash / go / csharp / json / yaml）
+- 內容值以 Lexical EditorState JSON 字串存取
 
-- 粗體、斜體、底線、刪除線、行內程式碼
-- 字體顏色、背景色（highlight）
-- 段落對齊：左、中、右
+## 已實作功能（依目前程式碼）
+
+### 1) 文字與段落編輯
+
+- Inline format：粗體、斜體、底線、刪除線、行內程式碼
+- 字色與背景色（highlight）
+- 對齊：左 / 中 / 右
 - Undo / Redo
 
 ### 2) 區塊類型
 
-- Normal Paragraph
+- Paragraph
 - Heading 1 ~ Heading 6
 - Quote
-- Code Block（可切換語言）
+- Code Block
 
 ### 3) 清單
 
-- 無序清單（Bullet）切換
-- 有序清單（Numbered）切換
+- Bullet list 切換
+- Numbered list 切換
 
-### 4) Markdown 快捷輸入
+### 4) Markdown shortcuts
 
-- 支援常見 Markdown shortcuts（例如 heading、quote、list、bold、italic、strikethrough、inline code、code block）
+- 支援常見轉換：heading、quote、unordered/ordered list、bold/italic/strikethrough、inline code、code block
 
-### 5) 程式碼區塊
+### 5) Code Block 體驗
 
-- Code Block 語法高亮
-- 語言切換（JS/TS/HTML/CSS/Python/Java/C#/C++/Go/Rust/SQL/Bash/JSON/Markdown/YAML/Plain text）
+- 程式碼語法高亮
+- 目前游標在 code block 時，右下角顯示語言切換器
+- 可切換語言：JavaScript / TypeScript / HTML / CSS / Python / Java / C# / C++ / Go / Rust / SQL / Bash / JSON / Markdown / YAML / Plain text
 
 ### 6) 圖片功能
 
-- 從工具列上傳圖片（`image/*`）
-- 大圖自動壓縮（目標約 128KB）
-- 插入後可點選圖片，提供四角拖曳縮放
+- 工具列可上傳圖片（`image/*`）
+- 貼上剪貼簿圖片時可直接攔截並插入
+- 大圖自動壓縮（目標約 15KB，必要時降品質與縮尺寸）
+- 選取圖片後提供四角拖曳縮放
 - 支援 `Delete` / `Backspace` 刪除選取圖片
-- 圖片資料會寫入 Lexical state（含 src/alt/width/height）
+- 自訂 `ImageNode` 會序列化 `src / altText / width / height`
 
 ### 7) 表格功能
 
-- 插入 3x3 表格
-- 滑過儲存格顯示操作按鈕（⋮）並開啟 context menu
+- 插入表格（預設 3x3）
+- 儲存格右上角操作按鈕（⋮）與 context menu
 - 新增列/欄（上、下、左、右）
-- 刪除列/欄
+- 刪除列/欄（含多選時批次刪除）
 - 合併儲存格 / 拆分儲存格
 - 切換整列 Row Header
 - 設定儲存格垂直對齊（top / middle / bottom）
 - 滑鼠拖曳調整欄寬、列高
 - 拖曳重排列與欄順序
 
-### 8) 區塊拖曳重排
+### 8) 頂層區塊拖曳重排
 
 - 滑過頂層 block 顯示拖曳手把
-- 可拖曳重排 editor 內頂層區塊順序
-
-### 9) Angular 整合能力
-
-- `app-rich-editor` 已實作 `ControlValueAccessor`
-- 可直接用 `Reactive Forms` + `formControlName` 綁定
-- 內容透過 JSON（Lexical editor state）讀寫
+- 可拖曳重排 editor 內頂層節點順序
 
 ## 本機開發
 
@@ -72,8 +76,9 @@ npm start
 
 啟動後開啟 `http://localhost:4200/`。
 
-## 目前展示頁
+## Demo 頁內容
 
 - `title` + `content` 的 Reactive Form
-- 送出時可取得表單值
-- 頁面下方有 Debug 面板可查看 editor state JSON
+- `content` 使用 `app-rich-editor`（`formControlName="content"`）
+- submit 時可取得完整 JSON 值
+- 頁面下方 `Debug` 面板即時顯示 editor state
