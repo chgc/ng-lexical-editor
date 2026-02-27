@@ -8,7 +8,7 @@
       #editorEl
       class="editor-content"
       contenteditable="true"
-      data-placeholder="Type here... (supports Markdown: ## Heading, **bold**, `code`, ``` code block)"
+      data-placeholder="Type here..."
       (mousemove)="onEditorMouseMove($event)"
       (mouseleave)="onEditorMouseLeave($event)"
       (mousedown)="onEditorMouseDown($event)"
@@ -24,7 +24,9 @@
         (mousedown)="onBlockDragHandleMouseDown($event)"
         (mouseenter)="onBlockDragHandleEnter()"
         (mouseleave)="onBlockDragHandleLeave($event)"
-      >⠿</button>
+      >
+        ⠿
+      </button>
     }
 
     <!-- Table cell action button (top-right of hovered cell) -->
@@ -38,29 +40,44 @@
         (mouseleave)="onTableActionBtnLeave($event)"
         (mousedown)="$event.preventDefault(); $event.stopPropagation()"
         (click)="openTableMenu($event)"
-      >⋮</button>
+      >
+        ⋮
+      </button>
     }
 
     <!-- Image resize handles (shown when image is selected) -->
     @if (imageSelection(); as img) {
-      <div class="image-resize-box"
-           [style.left.px]="img.x"
-           [style.top.px]="img.y"
-           [style.width.px]="img.w"
-           [style.height.px]="img.h">
-      </div>
-      <div class="image-resize-handle handle-nw"
-           [style.left.px]="img.x - 5" [style.top.px]="img.y - 5"
-           (mousedown)="startImgResize($event, 'nw')"></div>
-      <div class="image-resize-handle handle-ne"
-           [style.left.px]="img.x + img.w - 5" [style.top.px]="img.y - 5"
-           (mousedown)="startImgResize($event, 'ne')"></div>
-      <div class="image-resize-handle handle-sw"
-           [style.left.px]="img.x - 5" [style.top.px]="img.y + img.h - 5"
-           (mousedown)="startImgResize($event, 'sw')"></div>
-      <div class="image-resize-handle handle-se"
-           [style.left.px]="img.x + img.w - 5" [style.top.px]="img.y + img.h - 5"
-           (mousedown)="startImgResize($event, 'se')"></div>
+      <div
+        class="image-resize-box"
+        [style.left.px]="img.x"
+        [style.top.px]="img.y"
+        [style.width.px]="img.w"
+        [style.height.px]="img.h"
+      ></div>
+      <div
+        class="image-resize-handle handle-nw"
+        [style.left.px]="img.x - 5"
+        [style.top.px]="img.y - 5"
+        (mousedown)="startImgResize($event, 'nw')"
+      ></div>
+      <div
+        class="image-resize-handle handle-ne"
+        [style.left.px]="img.x + img.w - 5"
+        [style.top.px]="img.y - 5"
+        (mousedown)="startImgResize($event, 'ne')"
+      ></div>
+      <div
+        class="image-resize-handle handle-sw"
+        [style.left.px]="img.x - 5"
+        [style.top.px]="img.y + img.h - 5"
+        (mousedown)="startImgResize($event, 'sw')"
+      ></div>
+      <div
+        class="image-resize-handle handle-se"
+        [style.left.px]="img.x + img.w - 5"
+        [style.top.px]="img.y + img.h - 5"
+        (mousedown)="startImgResize($event, 'se')"
+      ></div>
     }
 
     <!-- Resize indicator line -->
@@ -116,5 +133,3 @@
     }
   </div>
 </div>
-
-

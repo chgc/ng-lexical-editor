@@ -119,80 +119,49 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     this.es.setContextMenuCell(cellDOM);
     const { canMerge, canSplit, isRowHeader, vAlign } = this.es.getTableCellInfo(cellDOM);
     const btnRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.es.tableMenu.set({ x: btnRect.left, y: btnRect.bottom + 4, canMerge, canSplit, isRowHeader, vAlign });
+    this.es.tableMenu.set({
+      x: btnRect.left,
+      y: btnRect.bottom + 4,
+      canMerge,
+      canSplit,
+      isRowHeader,
+      vAlign,
+    });
     this.cdr.markForCheck();
   }
 
   // ── Editor area mouse events ───────────────────────────────────────────────
 
   onEditorMouseMove(event: MouseEvent): void {
-    const cell = this._findTableCell(event.target as HTMLElement);
+    const target = event.target as HTMLElement;
+    const cell = this._findTableCell(target);
 
-    if (
-      !this._colResizeState &&
-      !this._rowResizeState &&
-      !this._reorderState &&
-      !this._blockDragState
-    ) {
-      if (cell) {
-        this._updateTableActionBtn(cell);
-      } else if (!this._mouseOverActionBtn) {
-        this.tableActionBtn.set(null);
-        this._actionBtnCell = null;
-      }
-
-      const block = this._getTopLevelBlock(event.target as HTMLElement);
-      if (block !== null && block !== this._hoveredBlockEl) {
-        this._hoveredBlockEl = block;
-        this._updateBlockDragHandle(block);
-      }
+    if (!this._isTableInteractionActive()) {
+      this._syncTableActionButton(cell);
+      this._syncBlockDragHandle(target);
     }
 
-    if (this._colResizeState || this._rowResizeState || this._reorderState || this._blockDragState)
-      return;
-    if (!cell) {
-      this.editorEl.nativeElement.style.cursor = '';
-      return;
-    }
-
-    const rect = cell.getBoundingClientRect();
-    const relX = event.clientX - rect.left;
-    const relY = event.clientY - rect.top;
-
-    if (relX >= rect.width - 6) this.editorEl.nativeElement.style.cursor = 'col-resize';
-    else if (relY >= rect.height - 6) this.editorEl.nativeElement.style.cursor = 'row-resize';
-    else if (relY < 10 && cell.tagName === 'TH') this.editorEl.nativeElement.style.cursor = 'grab';
-    else if (relX < 20) this.editorEl.nativeElement.style.cursor = 'grab';
-    else this.editorEl.nativeElement.style.cursor = '';
+    if (this._isTableInteractionActive()) return;
+    this._updateCursorForCell(event, cell);
   }
 
   onEditorMouseLeave(event: MouseEvent): void {
-    if (
-      !this._colResizeState &&
-      !this._rowResizeState &&
-      !this._reorderState &&
-      !this._blockDragState
-    ) {
-      this.editorEl.nativeElement.style.cursor = '';
-    }
-    if (!this._mouseOverActionBtn) {
-      this.tableActionBtn.set(null);
-      this._actionBtnCell = null;
-      this.cdr.markForCheck();
-    }
+    if (!this._isTableInteractionActive()) this._setEditorCursor('');
+    if (!this._mouseOverActionBtn) this._clearTableActionButton();
+
     const related = event.relatedTarget as HTMLElement | null;
     if (!related?.closest('.block-drag-handle') && !this._blockDragState) {
-      this._hoveredBlockEl = null;
-      this.blockDragHandle.set(null);
-      this.cdr.markForCheck();
+      this._clearBlockDragHandle();
     }
   }
 
   onEditorMouseDown(event: MouseEvent): void {
-    if (!this._findImageContainer(event.target as HTMLElement)) this._deselectImage();
+    const target = event.target as HTMLElement;
+    if (!this._findImageContainer(target)) this._deselectImage();
 
-    const cell = this._findTableCell(event.target as HTMLElement);
+    const cell = this._findTableCell(target);
     if (!cell) return;
+
     const table = cell.closest('table') as HTMLTableElement;
     if (!table) return;
 
@@ -202,40 +171,11 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
     const colIdx = (cell as HTMLTableCellElement).cellIndex;
     const rowEl = cell.parentElement as HTMLTableRowElement;
 
-    if (relX >= rect.width - 6) {
-      event.preventDefault();
-      this._colResizeState = {
-        colIndex: colIdx,
-        tableEl: table,
-        startX: event.clientX,
-        startWidth: rect.width,
-      };
-      this._attachDocumentHandlers();
-    } else if (relY >= rect.height - 6) {
-      event.preventDefault();
-      this._rowResizeState = { rowEl, startY: event.clientY, startHeight: rect.height };
-      this._attachDocumentHandlers();
-    } else if (relY < 10 && cell.tagName === 'TH') {
-      event.preventDefault();
-      this._reorderState = {
-        type: 'col',
-        tableEl: table,
-        sourceIndex: colIdx,
-        currentDropGap: null,
-      };
-      this.editorEl.nativeElement.style.cursor = 'grabbing';
-      this._attachDocumentHandlers();
-    } else if (relX < 20) {
-      event.preventDefault();
-      this._reorderState = {
-        type: 'row',
-        tableEl: table,
-        sourceIndex: rowEl.rowIndex,
-        currentDropGap: null,
-      };
-      this.editorEl.nativeElement.style.cursor = 'grabbing';
-      this._attachDocumentHandlers();
-    }
+    if (relX >= rect.width - 6) return this._startColumnResize(event, table, colIdx, rect.width);
+    if (relY >= rect.height - 6) return this._startRowResize(event, rowEl, rect.height);
+    if (relY < 10 && cell.tagName === 'TH')
+      return this._startTableReorder(event, 'col', table, colIdx);
+    if (relX < 20) this._startTableReorder(event, 'row', table, rowEl.rowIndex);
   }
 
   onEditorClick(event: MouseEvent): void {
@@ -344,200 +284,22 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
   }
 
   private _onDocMouseMove(event: MouseEvent): void {
-    if (this._blockDragState) {
-      const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
-      const blocks = Array.from(this.editorEl.nativeElement.children) as HTMLElement[];
-      const { sourceIndex } = this._blockDragState;
-      let gap = 0;
-      for (let i = 0; i < blocks.length; i++) {
-        const r = blocks[i].getBoundingClientRect();
-        if (event.clientY > r.top + r.height / 2) gap = i + 1;
-      }
-      const dropIndex = gap === sourceIndex || gap === sourceIndex + 1 ? null : gap;
-      this._blockDragState.dropIndex = dropIndex;
-      if (dropIndex === null) {
-        this.reorderIndicator.set(null);
-      } else {
-        const editorRect = this.editorEl.nativeElement.getBoundingClientRect();
-        const y =
-          dropIndex === 0
-            ? blocks[0].getBoundingClientRect().top - areaRect.top
-            : blocks[dropIndex - 1].getBoundingClientRect().bottom - areaRect.top;
-        this.reorderIndicator.set({
-          x: editorRect.left - areaRect.left,
-          y: y - 1,
-          w: editorRect.width,
-          h: 3,
-        });
-      }
-      this.cdr.markForCheck();
-      return;
-    }
-
-    if (this._imgResizeState) {
-      const { handle, startX, startY, startW, startH, ratio, containerEl } = this._imgResizeState;
-      const img = containerEl.querySelector('img') as HTMLImageElement;
-      const sign = handle === 'nw' || handle === 'sw' ? -1 : 1;
-      const dx = (event.clientX - startX) * sign;
-      const dy = (event.clientY - startY) * (handle === 'nw' || handle === 'ne' ? -1 : 1);
-      const newW = Math.max(50, startW + (Math.abs(dx) >= Math.abs(dy) ? dx : dy / ratio));
-      img.style.width = newW + 'px';
-      img.style.height = newW * ratio + 'px';
-      const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
-      const imgRect = img.getBoundingClientRect();
-      this.imageSelection.set({
-        x: imgRect.left - areaRect.left,
-        y: imgRect.top - areaRect.top,
-        w: imgRect.width,
-        h: imgRect.height,
-      });
-      this.cdr.detectChanges();
-      return;
-    }
-
-    const areaRect = this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
-
-    if (this._colResizeState) {
-      const { startX, startWidth, colIndex, tableEl } = this._colResizeState;
-      const newWidth = Math.max(40, startWidth + event.clientX - startX);
-      Array.from(tableEl.rows).forEach((row) => {
-        const c = row.cells[colIndex];
-        if (c) c.style.width = newWidth + 'px';
-      });
-      const cell = tableEl.rows[0]?.cells[colIndex];
-      if (cell) {
-        this.resizeIndicator.set({
-          vertical: true,
-          position: cell.getBoundingClientRect().right - areaRect.left,
-        });
-        this.cdr.markForCheck();
-      }
-      return;
-    }
-
-    if (this._rowResizeState) {
-      const { startY, startHeight, rowEl } = this._rowResizeState;
-      rowEl.style.height = Math.max(24, startHeight + event.clientY - startY) + 'px';
-      this.resizeIndicator.set({
-        vertical: false,
-        position: rowEl.getBoundingClientRect().bottom - areaRect.top,
-      });
-      this.cdr.markForCheck();
-      return;
-    }
-
-    if (this._reorderState) {
-      const { type, tableEl, sourceIndex } = this._reorderState;
-      const gap =
-        type === 'row'
-          ? this._calcRowDropGap(event, tableEl, sourceIndex)
-          : this._calcColDropGap(event, tableEl, sourceIndex);
-      this._reorderState.currentDropGap = gap;
-      this.reorderIndicator.set(
-        gap === null
-          ? null
-          : type === 'row'
-            ? this._rowIndicatorRect(gap, tableEl, areaRect)
-            : this._colIndicatorRect(gap, tableEl, areaRect),
-      );
-      this.cdr.markForCheck();
-    }
+    if (this._blockDragState) return this._handleBlockDragMove(event);
+    if (this._imgResizeState) return this._handleImageResizeMove(event);
+    if (this._colResizeState) return this._handleColumnResizeMove(event);
+    if (this._rowResizeState) return this._handleRowResizeMove(event);
+    if (this._reorderState) this._handleTableReorderMove(event);
   }
 
   private _onDocMouseUp(event: MouseEvent): void {
-    if (this._blockDragState) {
-      const { sourceIndex, dropIndex } = this._blockDragState;
-      this._blockDragState = null;
-      this.reorderIndicator.set(null);
-      if (dropIndex !== null) {
-        this.es.editor.update(() => {
-          $setSelection(null);
-          const children = $getRoot().getChildren();
-          const src = children[sourceIndex];
-          if (!src) return;
-          if (dropIndex < sourceIndex) children[dropIndex]?.insertBefore(src);
-          else children[dropIndex - 1]?.insertAfter(src);
-        });
-      }
-      this.editorEl.nativeElement.style.cursor = '';
-      this._detachDocumentHandlers();
-      this.cdr.markForCheck();
-      return;
-    }
+    if (this._blockDragState) return this._finishBlockDrag();
+    if (this._imgResizeState) return this._finishImageResize(event);
 
-    if (this._imgResizeState) {
-      const { handle, startX, startY, startW, startH, ratio, containerEl } = this._imgResizeState;
-      const sign = handle === 'nw' || handle === 'sw' ? -1 : 1;
-      const dx = (event.clientX - startX) * sign;
-      const dy = (event.clientY - startY) * (handle === 'nw' || handle === 'ne' ? -1 : 1);
-      const newW = Math.max(50, startW + (Math.abs(dx) >= Math.abs(dy) ? dx : dy / ratio));
-      this._imgResizeState = null;
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', this._boundDocMouseMove);
-      document.removeEventListener('mouseup', this._boundDocMouseUp);
-      this.es.editor.update(() => {
-        const node = $getNearestNodeFromDOMNode(containerEl);
-        if ($isImageNode(node)) node.setDimensions(newW, newW * ratio);
-      });
-      this._updateImageSelection(containerEl);
-      return;
-    }
+    if (this._colResizeState) this._finishColumnResize(event);
+    if (this._rowResizeState) this._finishRowResize(event);
+    if (this._reorderState) this._finishTableReorder();
 
-    if (this._colResizeState) {
-      const { startX, startWidth, colIndex, tableEl } = this._colResizeState;
-      const newWidth = Math.max(40, startWidth + event.clientX - startX);
-      this._colResizeState = null;
-      this.resizeIndicator.set(null);
-      this.es.editor.update(() => {
-        Array.from(tableEl.rows).forEach((row) => {
-          const cellEl = row.cells[colIndex];
-          if (!cellEl) return;
-          const n = $getNearestNodeFromDOMNode(cellEl);
-          if ($isTableCellNode(n)) n.setWidth(newWidth);
-        });
-      });
-    }
-
-    if (this._rowResizeState) {
-      const { startY, startHeight, rowEl } = this._rowResizeState;
-      const newHeight = Math.max(24, startHeight + event.clientY - startY);
-      this._rowResizeState = null;
-      this.resizeIndicator.set(null);
-      this.es.editor.update(() => {
-        const n = $getNearestNodeFromDOMNode(rowEl);
-        if ($isTableRowNode(n)) n.setHeight(newHeight);
-      });
-    }
-
-    if (this._reorderState) {
-      const { type, tableEl, sourceIndex, currentDropGap } = this._reorderState;
-      this._reorderState = null;
-      this.reorderIndicator.set(null);
-      if (currentDropGap !== null) {
-        this.es.editor.update(() => {
-          const tableNode = $getNearestNodeFromDOMNode(tableEl);
-          if (!$isTableNode(tableNode)) return;
-          if (type === 'row') {
-            const rows = tableNode.getChildren();
-            const src = rows[sourceIndex];
-            if (!src) return;
-            if (currentDropGap < sourceIndex) rows[currentDropGap]?.insertBefore(src);
-            else rows[currentDropGap - 1]?.insertAfter(src);
-          } else {
-            tableNode.getChildren().forEach((rowNode) => {
-              if (!$isTableRowNode(rowNode)) return;
-              const cells = rowNode.getChildren();
-              const src = cells[sourceIndex];
-              if (!src) return;
-              if (currentDropGap < sourceIndex) cells[currentDropGap]?.insertBefore(src);
-              else cells[currentDropGap - 1]?.insertAfter(src);
-            });
-          }
-        });
-      }
-    }
-
-    this.editorEl.nativeElement.style.cursor = '';
+    this._setEditorCursor('');
     this._detachDocumentHandlers();
     this.cdr.markForCheck();
   }
@@ -604,6 +366,311 @@ export class RichEditorComponent implements AfterViewInit, OnDestroy, ControlVal
       y: cellRect.top - areaRect.top + 3,
     });
     this.cdr.markForCheck();
+  }
+
+  private _isTableInteractionActive(): boolean {
+    return !!(
+      this._colResizeState ||
+      this._rowResizeState ||
+      this._reorderState ||
+      this._blockDragState
+    );
+  }
+
+  private _setEditorCursor(cursor: string): void {
+    this.editorEl.nativeElement.style.cursor = cursor;
+  }
+
+  private _clearTableActionButton(): void {
+    this.tableActionBtn.set(null);
+    this._actionBtnCell = null;
+    this.cdr.markForCheck();
+  }
+
+  private _clearBlockDragHandle(): void {
+    this._hoveredBlockEl = null;
+    this.blockDragHandle.set(null);
+    this.cdr.markForCheck();
+  }
+
+  private _syncTableActionButton(cell: HTMLElement | null): void {
+    if (cell) this._updateTableActionBtn(cell);
+    else if (!this._mouseOverActionBtn) this._clearTableActionButton();
+  }
+
+  private _syncBlockDragHandle(target: HTMLElement): void {
+    const block = this._getTopLevelBlock(target);
+    if (block !== null && block !== this._hoveredBlockEl) {
+      this._hoveredBlockEl = block;
+      this._updateBlockDragHandle(block);
+    }
+  }
+
+  private _updateCursorForCell(event: MouseEvent, cell: HTMLElement | null): void {
+    if (!cell) {
+      this._setEditorCursor('');
+      return;
+    }
+
+    const rect = cell.getBoundingClientRect();
+    const relX = event.clientX - rect.left;
+    const relY = event.clientY - rect.top;
+
+    if (relX >= rect.width - 6) this._setEditorCursor('col-resize');
+    else if (relY >= rect.height - 6) this._setEditorCursor('row-resize');
+    else if ((relY < 10 && cell.tagName === 'TH') || relX < 20) this._setEditorCursor('grab');
+    else this._setEditorCursor('');
+  }
+
+  private _startColumnResize(
+    event: MouseEvent,
+    tableEl: HTMLTableElement,
+    colIndex: number,
+    startWidth: number,
+  ): void {
+    event.preventDefault();
+    this._colResizeState = { colIndex, tableEl, startX: event.clientX, startWidth };
+    this._attachDocumentHandlers();
+  }
+
+  private _startRowResize(
+    event: MouseEvent,
+    rowEl: HTMLTableRowElement,
+    startHeight: number,
+  ): void {
+    event.preventDefault();
+    this._rowResizeState = { rowEl, startY: event.clientY, startHeight };
+    this._attachDocumentHandlers();
+  }
+
+  private _startTableReorder(
+    event: MouseEvent,
+    type: 'row' | 'col',
+    tableEl: HTMLTableElement,
+    sourceIndex: number,
+  ): void {
+    event.preventDefault();
+    this._reorderState = { type, tableEl, sourceIndex, currentDropGap: null };
+    this._setEditorCursor('grabbing');
+    this._attachDocumentHandlers();
+  }
+
+  private _getEditorAreaRect(): DOMRect {
+    return this.editorEl.nativeElement.parentElement!.getBoundingClientRect();
+  }
+
+  private _computeImageResizeWidth(
+    event: MouseEvent,
+    state: NonNullable<typeof this._imgResizeState>,
+  ): number {
+    const { handle, startX, startY, startW, ratio } = state;
+    const horizontalSign = handle === 'nw' || handle === 'sw' ? -1 : 1;
+    const verticalSign = handle === 'nw' || handle === 'ne' ? -1 : 1;
+    const dx = (event.clientX - startX) * horizontalSign;
+    const dy = (event.clientY - startY) * verticalSign;
+    const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy / ratio;
+    return Math.max(50, startW + delta);
+  }
+
+  private _handleBlockDragMove(event: MouseEvent): void {
+    const areaRect = this._getEditorAreaRect();
+    const blocks = Array.from(this.editorEl.nativeElement.children) as HTMLElement[];
+    const { sourceIndex } = this._blockDragState!;
+
+    let gap = 0;
+    for (let i = 0; i < blocks.length; i++) {
+      const blockRect = blocks[i].getBoundingClientRect();
+      if (event.clientY > blockRect.top + blockRect.height / 2) gap = i + 1;
+    }
+
+    const dropIndex = gap === sourceIndex || gap === sourceIndex + 1 ? null : gap;
+    this._blockDragState!.dropIndex = dropIndex;
+
+    if (dropIndex === null) {
+      this.reorderIndicator.set(null);
+    } else {
+      const editorRect = this.editorEl.nativeElement.getBoundingClientRect();
+      const y =
+        dropIndex === 0
+          ? blocks[0].getBoundingClientRect().top - areaRect.top
+          : blocks[dropIndex - 1].getBoundingClientRect().bottom - areaRect.top;
+      this.reorderIndicator.set({
+        x: editorRect.left - areaRect.left,
+        y: y - 1,
+        w: editorRect.width,
+        h: 3,
+      });
+    }
+
+    this.cdr.markForCheck();
+  }
+
+  private _handleImageResizeMove(event: MouseEvent): void {
+    const state = this._imgResizeState!;
+    const img = state.containerEl.querySelector('img') as HTMLImageElement;
+    const newW = this._computeImageResizeWidth(event, state);
+
+    img.style.width = newW + 'px';
+    img.style.height = newW * state.ratio + 'px';
+
+    const areaRect = this._getEditorAreaRect();
+    const imgRect = img.getBoundingClientRect();
+    this.imageSelection.set({
+      x: imgRect.left - areaRect.left,
+      y: imgRect.top - areaRect.top,
+      w: imgRect.width,
+      h: imgRect.height,
+    });
+    this.cdr.detectChanges();
+  }
+
+  private _handleColumnResizeMove(event: MouseEvent): void {
+    const state = this._colResizeState!;
+    const areaRect = this._getEditorAreaRect();
+    const newWidth = Math.max(40, state.startWidth + event.clientX - state.startX);
+
+    Array.from(state.tableEl.rows).forEach((row) => {
+      const c = row.cells[state.colIndex];
+      if (c) c.style.width = newWidth + 'px';
+    });
+
+    const cell = state.tableEl.rows[0]?.cells[state.colIndex];
+    if (!cell) return;
+
+    this.resizeIndicator.set({
+      vertical: true,
+      position: cell.getBoundingClientRect().right - areaRect.left,
+    });
+    this.cdr.markForCheck();
+  }
+
+  private _handleRowResizeMove(event: MouseEvent): void {
+    const state = this._rowResizeState!;
+    const areaRect = this._getEditorAreaRect();
+
+    state.rowEl.style.height =
+      Math.max(24, state.startHeight + event.clientY - state.startY) + 'px';
+    this.resizeIndicator.set({
+      vertical: false,
+      position: state.rowEl.getBoundingClientRect().bottom - areaRect.top,
+    });
+    this.cdr.markForCheck();
+  }
+
+  private _handleTableReorderMove(event: MouseEvent): void {
+    const state = this._reorderState!;
+    const areaRect = this._getEditorAreaRect();
+
+    const gap =
+      state.type === 'row'
+        ? this._calcRowDropGap(event, state.tableEl, state.sourceIndex)
+        : this._calcColDropGap(event, state.tableEl, state.sourceIndex);
+
+    state.currentDropGap = gap;
+    this.reorderIndicator.set(
+      gap === null
+        ? null
+        : state.type === 'row'
+          ? this._rowIndicatorRect(gap, state.tableEl, areaRect)
+          : this._colIndicatorRect(gap, state.tableEl, areaRect),
+    );
+    this.cdr.markForCheck();
+  }
+
+  private _finishBlockDrag(): void {
+    const { sourceIndex, dropIndex } = this._blockDragState!;
+    this._blockDragState = null;
+    this.reorderIndicator.set(null);
+
+    if (dropIndex !== null) {
+      this.es.editor.update(() => {
+        $setSelection(null);
+        const children = $getRoot().getChildren();
+        const src = children[sourceIndex];
+        if (!src) return;
+        if (dropIndex < sourceIndex) children[dropIndex]?.insertBefore(src);
+        else children[dropIndex - 1]?.insertAfter(src);
+      });
+    }
+
+    this._setEditorCursor('');
+    this._detachDocumentHandlers();
+    this.cdr.markForCheck();
+  }
+
+  private _finishImageResize(event: MouseEvent): void {
+    const state = this._imgResizeState!;
+    const newW = this._computeImageResizeWidth(event, state);
+
+    this._imgResizeState = null;
+    document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', this._boundDocMouseMove);
+    document.removeEventListener('mouseup', this._boundDocMouseUp);
+
+    this.es.editor.update(() => {
+      const node = $getNearestNodeFromDOMNode(state.containerEl);
+      if ($isImageNode(node)) node.setDimensions(newW, newW * state.ratio);
+    });
+    this._updateImageSelection(state.containerEl);
+  }
+
+  private _finishColumnResize(event: MouseEvent): void {
+    const state = this._colResizeState!;
+    const newWidth = Math.max(40, state.startWidth + event.clientX - state.startX);
+
+    this._colResizeState = null;
+    this.resizeIndicator.set(null);
+    this.es.editor.update(() => {
+      Array.from(state.tableEl.rows).forEach((row) => {
+        const cellEl = row.cells[state.colIndex];
+        if (!cellEl) return;
+        const node = $getNearestNodeFromDOMNode(cellEl);
+        if ($isTableCellNode(node)) node.setWidth(newWidth);
+      });
+    });
+  }
+
+  private _finishRowResize(event: MouseEvent): void {
+    const state = this._rowResizeState!;
+    const newHeight = Math.max(24, state.startHeight + event.clientY - state.startY);
+
+    this._rowResizeState = null;
+    this.resizeIndicator.set(null);
+    this.es.editor.update(() => {
+      const node = $getNearestNodeFromDOMNode(state.rowEl);
+      if ($isTableRowNode(node)) node.setHeight(newHeight);
+    });
+  }
+
+  private _finishTableReorder(): void {
+    const { type, tableEl, sourceIndex, currentDropGap } = this._reorderState!;
+    this._reorderState = null;
+    this.reorderIndicator.set(null);
+
+    if (currentDropGap === null) return;
+
+    this.es.editor.update(() => {
+      const tableNode = $getNearestNodeFromDOMNode(tableEl);
+      if (!$isTableNode(tableNode)) return;
+
+      if (type === 'row') {
+        const rows = tableNode.getChildren();
+        const src = rows[sourceIndex];
+        if (!src) return;
+        if (currentDropGap < sourceIndex) rows[currentDropGap]?.insertBefore(src);
+        else rows[currentDropGap - 1]?.insertAfter(src);
+        return;
+      }
+
+      tableNode.getChildren().forEach((rowNode) => {
+        if (!$isTableRowNode(rowNode)) return;
+        const cells = rowNode.getChildren();
+        const src = cells[sourceIndex];
+        if (!src) return;
+        if (currentDropGap < sourceIndex) cells[currentDropGap]?.insertBefore(src);
+        else cells[currentDropGap - 1]?.insertAfter(src);
+      });
+    });
   }
 
   private _updateBlockDragHandle(block: HTMLElement): void {
